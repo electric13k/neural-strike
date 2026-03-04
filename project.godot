@@ -1,0 +1,17 @@
+; Engine configuration file.
+config_version=5
+
+[application]
+config/name="Neural Strike"
+run/main_scene="res://scenes/main_menu.tscn"
+config/features=PackedStringArray("4.3", "Forward Plus")
+
+[autoload]
+MatchManager="*res://scripts/game_logic/match_manager.gd"
+NetworkManager="*res://scripts/networking/network_manager.gd"
+CameraFeedManager="*res://scripts/utilities/camera_feed_manager.gd"
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
