@@ -1,181 +1,151 @@
 extends CharacterBody3D
 class_name BotBase
 
-# Base class for all bot types
-# Handles basic AI states, movement, and healthbar
+enum BotState { IDLE, PATROL, CHASE, ATTACK, HACKED }
 
-@export var max_health: float = 100.0
-@export var speed: float = 5.0
+# Stats
+@export var max_health: int = 100
+var current_health: int = 100
+
+@export var speed: float = 3.5
+@export var attack_range: float = 15.0
 @export var detection_range: float = 20.0
 
-var current_health: float = 100.0
+# Bot ownership
+var owner_peer_id: int = -1  # -1 = neutral, 0 = server, >0 = player ID
+var is_hacked: bool = false
+
+# State
+var current_state = BotState.IDLE
 var target: Node3D = null
-var owner_peer_id: int = -1  # -1 = neutral, otherwise player's peer ID
 
-enum State { IDLE, PATROL, CHASE, COMBAT }
-var current_state: State = State.IDLE
-
-@onready var nav_agent: NavigationAgent3D = null
-@onready var healthbar: HealthBar3D = null
+@onready var nav_agent = $NavigationAgent3D if has_node("NavigationAgent3D") else null
+@onready var vision_ray = $RayCast3D if has_node("RayCast3D") else null
 
 func _ready():
 	current_health = max_health
 	add_to_group("bots")
-	
-	# Get NavigationAgent3D if it exists
-	if has_node("NavigationAgent3D"):
-		nav_agent = $NavigationAgent3D
-	
-	# Set up healthbar
-	if not healthbar and has_node("HealthBar3D"):
-		healthbar = $HealthBar3D
-	else:
-		# Create healthbar if not in scene
-		healthbar = preload("res://scripts/ui/healthbar_3d.gd").new()
-		add_child(healthbar)
-	
-	healthbar.max_health = max_health
-	healthbar.current_health = current_health
-	healthbar.offset_y = 1.8  # Above bot head
-	update_healthbar_team_color()
 
 func _physics_process(delta):
-	# Update healthbar team color every frame based on viewer
-	update_healthbar_team_color()
-	
 	match current_state:
-		State.IDLE: _idle_logic()
-		State.PATROL: _patrol_logic()
-		State.CHASE: _chase_logic()
-		State.COMBAT: _combat_logic()
+		BotState.IDLE:
+			_idle_behavior(delta)
+		BotState.PATROL:
+			_patrol_behavior(delta)
+		BotState.CHASE:
+			_chase_behavior(delta)
+		BotState.ATTACK:
+			_attack_behavior(delta)
+		BotState.HACKED:
+			_hacked_behavior(delta)
 
-func update_healthbar_team_color():
-	"""Update healthbar color based on who owns this bot vs local player."""
-	if not healthbar:
-		return
-	
-	# Get local player
-	var local_player = get_tree().get_first_node_in_group("local_player")
-	if not local_player:
-		# No local player, default to enemy (red)
-		healthbar.set_team(true)
-		return
-	
-	# Check if bot is owned by local player
-	var local_peer_id = local_player.get_peer_id() if local_player.has_method("get_peer_id") else -1
-	
-	if owner_peer_id == local_peer_id:
-		# Same owner = friendly (green)
-		healthbar.set_team(false)
-	else:
-		# Different owner = enemy (red)
-		healthbar.set_team(true)
-
-func _idle_logic():
+func _idle_behavior(_delta):
 	# Look for enemies
-	find_target()
-	if target:
-		current_state = State.CHASE
+	var enemy = _find_nearest_enemy()
+	if enemy:
+		target = enemy
+		current_state = BotState.CHASE
 
-func _patrol_logic():
-	# Random movement
+func _patrol_behavior(_delta):
+	# Simple patrol - override in subclasses
+	if nav_agent and not nav_agent.is_navigation_finished():
+		var next_pos = nav_agent.get_next_path_position()
+		var direction = (next_pos - global_position).normalized()
+		velocity = direction * speed
+		move_and_slide()
+	else:
+		current_state = BotState.IDLE
+
+func _chase_behavior(_delta):
+	if not target or not is_instance_valid(target):
+		current_state = BotState.IDLE
+		return
+	
+	var distance = global_position.distance_to(target.global_position)
+	
+	if distance > detection_range:
+		current_state = BotState.IDLE
+		target = null
+	elif distance <= attack_range:
+		current_state = BotState.ATTACK
+	else:
+		if nav_agent:
+			nav_agent.target_position = target.global_position
+			if not nav_agent.is_navigation_finished():
+				var next_pos = nav_agent.get_next_path_position()
+				var direction = (next_pos - global_position).normalized()
+				velocity = direction * speed
+				move_and_slide()
+
+func _attack_behavior(_delta):
+	if not target or not is_instance_valid(target):
+		current_state = BotState.IDLE
+		return
+	
+	var distance = global_position.distance_to(target.global_position)
+	
+	if distance > attack_range:
+		current_state = BotState.CHASE
+	else:
+		# Face target
+		look_at(target.global_position, Vector3.UP)
+		rotation.x = 0
+		rotation.z = 0
+		
+		# Attack logic - override in subclasses
+		_perform_attack()
+
+func _hacked_behavior(_delta):
+	# Follow owner's commands - implement in subclasses
 	pass
 
-func _chase_logic():
-	if not target or not is_instance_valid(target):
-		target = null
-		current_state = State.IDLE
-		return
-	
-	if nav_agent:
-		nav_agent.target_position = target.global_position
-		var next_pos = nav_agent.get_next_path_position()
-		velocity = (next_pos - global_position).normalized() * speed
-	else:
-		# Direct movement if no navigation
-		velocity = (target.global_position - global_position).normalized() * speed
-	
-	move_and_slide()
-	
-	# Switch to combat when close
-	if global_position.distance_to(target.global_position) < 10.0:
-		current_state = State.COMBAT
+func _perform_attack():
+	# Override in subclasses (shoot, melee, etc.)
+	pass
 
-func _combat_logic():
-	if not target or not is_instance_valid(target):
-		current_state = State.IDLE
-		return
-	
-	# Face target
-	look_at(target.global_position, Vector3.UP)
-	
-	# Keep distance
-	var distance = global_position.distance_to(target.global_position)
-	if distance > 15.0:
-		current_state = State.CHASE
-
-func find_target():
-	# Find nearest enemy player
+func _find_nearest_enemy() -> Node3D:
 	var players = get_tree().get_nodes_in_group("players")
+	var nearest: Node3D = null
 	var nearest_dist = detection_range
-	for player in players:
-		if is_instance_valid(player):
-			# Don't target own owner
-			if player.has_method("get_peer_id") and player.get_peer_id() == owner_peer_id:
-				continue
-			
-			var dist = global_position.distance_to(player.global_position)
-			if dist < nearest_dist:
-				target = player
-				nearest_dist = dist
-
-func take_damage(amount: float, attacker: Node3D = null):
-	"""Take damage and update healthbar."""
-	current_health -= amount
-	current_health = clamp(current_health, 0, max_health)
 	
-	if healthbar:
-		healthbar.update_health(current_health)
+	for player in players:
+		if not is_instance_valid(player):
+			continue
+		
+		# Don't attack owner
+		if player.get_multiplayer_authority() == owner_peer_id:
+			continue
+		
+		var dist = global_position.distance_to(player.global_position)
+		if dist < nearest_dist:
+			nearest = player
+			nearest_dist = dist
+	
+	return nearest
+
+func take_damage(amount: int, attacker_id: int = -1):
+	current_health = max(0, current_health - amount)
+	
+	# Interrupt hacking if taking damage
+	if is_hacked and current_health > 0:
+		is_hacked = false
+		current_state = BotState.IDLE
 	
 	if current_health <= 0:
 		die()
-	elif attacker and not target:
-		target = attacker
-		current_state = State.CHASE
-	
-	print("[Bot %s] Took %d damage, health: %d/%d" % [name, amount, current_health, max_health])
 
-func heal(amount: float):
-	"""Heal bot (used by medic bots)."""
-	current_health += amount
-	current_health = clamp(current_health, 0, max_health)
-	
-	if healthbar:
-		healthbar.update_health(current_health)
+func heal(amount: int):
+	current_health = min(max_health, current_health + amount)
 
 func die():
-	print("[Bot %s] Died" % name)
 	queue_free()
 
-# Methods for virus system
-func is_bot() -> bool:
-	return true
+func is_friendly_to(peer_id: int) -> bool:
+	"""Check if this bot is friendly to a given peer"""
+	return owner_peer_id == peer_id
 
-func get_owner_id() -> int:
-	return owner_peer_id
-
-func transfer_ownership(new_owner_id: int):
-	"""Transfer bot ownership (used by data knife virus)."""
-	owner_peer_id = new_owner_id
-	update_healthbar_team_color()
-	print("%s transferred to player %d" % [name, new_owner_id])
-
-func get_role() -> String:
-	return "Base"
-
-func get_health_percent() -> float:
-	return (current_health / max_health) * 100.0
-
-func get_peer_id() -> int:
-	"""For compatibility with player targeting."""
-	return owner_peer_id
+func set_owner(peer_id: int):
+	"""Change bot ownership (used when hacked)"""
+	owner_peer_id = peer_id
+	is_hacked = true
+	current_state = BotState.HACKED
