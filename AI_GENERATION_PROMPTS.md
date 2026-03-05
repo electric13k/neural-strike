@@ -100,7 +100,21 @@ Photorealistic futuristic bullpup assault rifle, Titanfall 2 R-201 style, modula
 
 ---
 
-## 🔪 WEAPON 2: DATA KNIFE
+## 🎯 WEAPON 2: SNIPER RIFLE (Kraber Style)
+
+### **ChatGPT (DALL-E 3) Prompt:**
+```
+Photorealistic 3D render of a futuristic anti-materiel sniper rifle inspired by Titanfall 2 Kraber, side profile view. Heavy long-barrel bolt-action design with massive electromagnetic rail coils visible along barrel length, large tactical scope with glowing green targeting reticle display, weathered military olive drab metal with black carbon fiber stock, reinforced bipod mount folded under barrel, large rectangular heat sink vents on barrel shroud, chunky bolt-action mechanism with exposed charging handle, thick rubberized cheek rest on stock, industrial military aesthetic with visible power cables running to scope, battle-damaged finish with scratches and dents, designed for extreme long-range precision. Studio lighting, white background, 8K quality, game weapon reference.
+```
+
+### **Tripo AI Prompt:**
+```
+Photorealistic futuristic anti-materiel sniper rifle, Titanfall 2 Kraber style, heavy long-barrel bolt-action with electromagnetic rail coils, large tactical scope with green targeting display, weathered olive drab with black carbon fiber stock, folded bipod mount, heat sink vents on barrel, chunky bolt mechanism, thick rubberized cheek rest, power cables to scope, battle-damaged scratches and dents, extreme long-range precision design, side profile view, high detail, 8K PBR textures
+```
+
+---
+
+## 🔪 WEAPON 3: DATA KNIFE
 
 ### **ChatGPT (DALL-E 3) Prompt:**
 ```
@@ -114,7 +128,63 @@ Photorealistic high-tech combat knife, Titanfall 2 data knife style, holographic
 
 ---
 
-## 💣 WEAPON 3: ARC GRENADE
+## 🩹 WEAPON 4: MEDICAL KIT (Healing Device)
+
+### **ChatGPT (DALL-E 3) Prompt:**
+```
+Photorealistic 3D render of a futuristic handheld medical healing device inspired by sci-fi medic tools, angled view. Compact rectangular device with white and cyan medical color scheme, holographic medical cross display on top face glowing blue, transparent side panels showing glowing blue healing gel canisters inside, ergonomic pistol-grip handle with rubberized texture, medical diagnostic screen on side showing heartbeat monitor and vitals readout, injection ports and nano-spray nozzles on front, clean sterile finish with minimal wear, blue LED status indicators along edges, compact emergency medical tool aesthetic with civilian-friendly rounded design. Studio lighting, white background, 8K quality, game weapon reference.
+```
+
+### **Tripo AI Prompt:**
+```
+Photorealistic futuristic handheld medical healing device, sci-fi medic tool, compact rectangular white and cyan design, holographic blue medical cross display on top, transparent panels showing blue healing gel canisters, ergonomic pistol-grip handle, diagnostic screen with vitals monitor, injection ports and nano-spray nozzles, clean sterile finish, blue LED indicators, compact emergency medical aesthetic, civilian-friendly rounded design, angled view, high detail, 8K PBR textures
+```
+
+---
+
+## 🔫 WEAPON 5: DMR (Designated Marksman Rifle)
+
+### **ChatGPT (DALL-E 3) Prompt:**
+```
+Photorealistic 3D render of a futuristic designated marksman rifle (DMR) inspired by tactical semi-auto precision rifles, side profile view. Long-barrel semi-automatic design with modular rail system, medium-range combat scope with glowing orange target acquisition display, weathered military grey and dark blue tactical paint, ergonomic pistol grip with textured polymer, adjustable stock with cheek riser, 20-round transparent magazine showing glowing orange tracker rounds, vertical foregrip mounted on bottom rail, suppressor-ready threaded barrel with hybrid flash hider, industrial military aesthetic with exposed mechanical parts and panel lines, battle-worn finish with tactical markings. Studio lighting, white background, 8K quality, game weapon reference.
+```
+
+### **Tripo AI Prompt:**
+```
+Photorealistic futuristic DMR designated marksman rifle, tactical semi-auto precision rifle, long-barrel with modular rail system, medium-range scope with orange target display, weathered grey and dark blue tactical paint, ergonomic grip with polymer texture, adjustable stock with cheek riser, 20-round transparent magazine with orange tracker rounds, vertical foregrip, threaded barrel with flash hider, industrial military aesthetic, battle-worn tactical markings, side profile view, high detail, 8K PBR textures
+```
+
+---
+
+## 💥 WEAPON 6: SHOTGUN (Tactical Combat Shotgun)
+
+### **ChatGPT (DALL-E 3) Prompt:**
+```
+Photorealistic 3D render of a futuristic tactical combat shotgun inspired by sci-fi close-quarters weapons, side profile view. Bullpup pump-action design with wide barrel bore, tactical rail system on top with holographic reflex sight, glowing red ammunition counter on side, weathered industrial grey metal with red accent stripes, rubberized pump grip with aggressive texture, tubular magazine under barrel showing glowing red shell indicators, reinforced stock with shock absorber pad, heat dissipation vents on barrel shroud, compact CQB-optimized design with wide spread choke, battle-damaged finish with scratches and paint wear. Studio lighting, white background, 8K quality, game weapon reference.
+```
+
+### **Tripo AI Prompt:**
+```
+Photorealistic futuristic tactical combat shotgun, sci-fi CQB weapon, bullpup pump-action with wide barrel, tactical rail with holographic sight, glowing red ammo counter, weathered grey with red accents, rubberized pump grip, tubular magazine with red shell indicators, reinforced stock with shock pad, heat vents on barrel, compact CQB design with spread choke, battle-damaged scratches, side profile view, high detail, 8K PBR textures
+```
+
+---
+
+## 🔫 WEAPON 7: PISTOL (Sidearm)
+
+### **ChatGPT (DALL-E 3) Prompt:**
+```
+Photorealistic 3D render of a futuristic semi-automatic pistol inspired by tactical handguns, side profile view. Sleek polymer frame with military grey and black two-tone finish, tactical rail under barrel for attachments, glowing orange digital ammo counter on slide, ergonomic grip with textured rubber panels, extended 15-round magazine with transparent window showing glowing rounds, red dot sight mounted on slide, suppressor-ready threaded barrel, compact backup weapon aesthetic with tactical military design, weathered finish with holster wear marks. Studio lighting, white background, 8K quality, game weapon reference.
+```
+
+### **Tripo AI Prompt:**
+```
+Photorealistic futuristic semi-automatic pistol, tactical handgun, sleek polymer frame with grey and black finish, tactical rail under barrel, glowing orange ammo counter on slide, ergonomic grip with rubber texture, extended 15-round magazine with transparent window, red dot sight on slide, threaded barrel, compact backup weapon, tactical military design, weathered holster wear, side profile view, high detail, 8K PBR textures
+```
+
+---
+
+## 💣 WEAPON 8: ARC GRENADE (Electric)
 
 ### **ChatGPT (DALL-E 3) Prompt:**
 ```
@@ -124,6 +194,48 @@ Photorealistic 3D render of a spherical sci-fi grenade inspired by Titanfall 2 a
 ### **Tripo AI Prompt:**
 ```
 Photorealistic spherical sci-fi grenade, Titanfall 2 arc grenade style, segmented metallic shell, glowing blue electric core visible through transparent center, electromagnetic coils with circuitry, compact design with pin and lever, electric arc sparks, weathered military finish, industrial sci-fi aesthetic, front view, high detail, 8K PBR textures
+```
+
+---
+
+## 🕳️ WEAPON 9: BLACK HOLE GRENADE
+
+### **ChatGPT (DALL-E 3) Prompt:**
+```
+Photorealistic 3D render of a spherical physics-bending grenade with gravity manipulation technology, front view. Segmented dark metallic shell with purple-black iridescent panels, swirling purple gravitational vortex core visible through transparent center sphere, gravity field emitters with visible exotic matter containment rings, compact spherical design with safety pin and lever, purple energy tendrils emanating from core, ominous dark sci-fi aesthetic with void-like energy effects, weathered military finish with cosmic purple accents. Studio lighting, white background, 8K quality, game weapon reference.
+```
+
+### **Tripo AI Prompt:**
+```
+Photorealistic spherical physics grenade with gravity manipulation, dark metallic shell with purple-black iridescent panels, swirling purple gravitational vortex core through transparent center, gravity emitters with exotic matter rings, compact design with pin and lever, purple energy tendrils, ominous void aesthetic, weathered military with cosmic purple accents, front view, high detail, 8K PBR textures
+```
+
+---
+
+## 🌪️ WEAPON 10: VORTEX GRENADE
+
+### **ChatGPT (DALL-E 3) Prompt:**
+```
+Photorealistic 3D render of a spherical vortex-generating grenade with spin-field technology, front view. Segmented metallic shell with orange and silver rotating panels, swirling orange spiral energy core visible through transparent center with rotation indicators, centrifugal force emitters with visible gyroscopic rings, compact spherical design with safety pin and lever, orange spiral energy trails rotating around shell, dynamic sci-fi aesthetic with kinetic motion design, weathered military finish with orange caution stripes. Studio lighting, white background, 8K quality, game weapon reference.
+```
+
+### **Tripo AI Prompt:**
+```
+Photorealistic spherical vortex grenade with spin-field technology, metallic shell with orange and silver rotating panels, swirling orange spiral core through transparent center with rotation indicators, centrifugal emitters with gyroscopic rings, compact design with pin and lever, orange spiral energy trails, dynamic kinetic aesthetic, weathered military with orange caution stripes, front view, high detail, 8K PBR textures
+```
+
+---
+
+## 📱 GADGET 1: BATTLE PAD (Holographic Tablet)
+
+### **ChatGPT (DALL-E 3) Prompt:**
+```
+Photorealistic 3D render of a futuristic holographic tactical tablet device, angled view showing screen. Sleek flat rectangular form with dark military grey carbon fiber frame, large holographic display screen projecting cyan glowing tactical interface with minimap and camera feeds grid, reinforced rubberized corners with tactical grip texture, exposed circuitry and power cells visible through transparent side panels, military-grade ruggedized design with orange accent strips, glowing orange power button and status LEDs, antenna array on top edge, cyberpunk tactical command center aesthetic, weathered field-use finish with scratches. Studio lighting, white background, 8K quality, game weapon reference.
+```
+
+### **Tripo AI Prompt:**
+```
+Photorealistic futuristic holographic tactical tablet, sleek flat rectangular dark grey carbon fiber frame, large cyan holographic display with tactical interface minimap and camera grid, reinforced rubberized corners with grip texture, exposed circuitry through transparent panels, military ruggedized with orange accents, glowing orange power button and LEDs, antenna array on edge, cyberpunk command center aesthetic, weathered scratches, angled view showing screen, high detail, 8K PBR textures
 ```
 
 ---
@@ -149,9 +261,17 @@ Sniper Bot:    6.5 feet  █████████ (taller, stable marksman)
 3. **Assault Rifle** (primary weapon)
 4. **Medic Bot** (test healing mechanics)
 5. **Data Knife** (hacking system)
-6. **Spy Bot** (stealth gameplay)
-7. **Sniper Bot** (long-range combat)
-8. **Arc Grenade** (special ability)
+6. **Sniper Rifle** (long-range weapon)
+7. **Medical Kit** (healing tool)
+8. **Battle Pad** (tactical gadget)
+9. **Spy Bot** (stealth gameplay)
+10. **Sniper Bot** (long-range combat)
+11. **DMR** (mid-range weapon)
+12. **Shotgun** (CQB weapon)
+13. **Pistol** (backup weapon)
+14. **Arc Grenade** (electric ability)
+15. **Black Hole Grenade** (gravity ability)
+16. **Vortex Grenade** (spin ability)
 
 ---
 
