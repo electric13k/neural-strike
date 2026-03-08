@@ -1,0 +1,48 @@
+# Unity-specific .gitignore
+
+# This file is intended for the `unity` branch. It ignores Unity-generated
+# temporary files while still allowing source assets and project settings.
+
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Mm]emoryCaptures/
+
+# Asset Store tools
+[Aa]sset[Ss]tore/
+
+# Crashlytics
+crashlytics-build.properties
+
+# Collaborate
+[Cc]ollab/
+
+# Rider
+.idea/
+*.sln.iml
+
+# VS / VSCode
+.vs/
+*.csproj
+*.sln
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Unity auto-generated meta for non-existing assets (safe to ignore globally)
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
