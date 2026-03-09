@@ -1,138 +1,100 @@
 using UnityEngine;
-using NeuralStrike.Core;
 
-namespace NeuralStrike.Player
+[RequireComponent(typeof(CharacterController))]
+public class PlayerController : MonoBehaviour
 {
-    /// <summary>
-    /// First-person player controller with movement, jumping, sprinting, and crouching.
-    /// Requires CharacterController component.
-    /// </summary>
-    [RequireComponent(typeof(CharacterController))]
-    public class PlayerController : MonoBehaviour
+    [Header("Movement")]
+    public float walkSpeed = 5f;
+    public float sprintSpeed = 8f;
+    public float jumpHeight = 1.5f;
+    public float gravity = -9.81f;
+    public float airControlMultiplier = 0.5f;
+
+    [Header("Ground Check")]
+    public Transform groundCheck;
+    public float groundCheckRadius = 0.3f;
+    public LayerMask groundMask;
+
+    private CharacterController controller;
+    private Vector3 velocity;
+    private bool isGrounded;
+    private float currentSpeed;
+
+    private void Awake()
     {
-        [Header("Movement")]
-        [SerializeField] private float walkSpeed = 5f;
-        [SerializeField] private float sprintSpeed = 8f;
-        [SerializeField] private float crouchSpeed = 2.5f;
-        [SerializeField] private float jumpForce = 5f;
-        [SerializeField] private float gravity = 20f;
-        
-        [Header("Crouch Settings")]
-        [SerializeField] private float standingHeight = 2f;
-        [SerializeField] private float crouchHeight = 1f;
-        [SerializeField] private float crouchTransitionSpeed = 10f;
-        
-        [Header("Input Settings")]
-        [SerializeField] private KeyCode sprintKey = KeyCode.LeftShift;
-        [SerializeField] private KeyCode crouchKey = KeyCode.LeftControl;
-        [SerializeField] private KeyCode jumpKey = KeyCode.Space;
-        
-        private CharacterController controller;
-        private Vector3 velocity;
-        private bool isCrouching = false;
-        private float currentSpeed;
-        
-        void Awake()
+        controller = GetComponent<CharacterController>();
+        currentSpeed = walkSpeed;
+    }
+
+    private void Update()
+    {
+        HandleGroundCheck();
+        HandleMovement();
+        HandleJump();
+        ApplyGravity();
+        controller.Move(velocity * Time.deltaTime);
+    }
+
+    private void HandleGroundCheck()
+    {
+        if (groundCheck != null)
         {
-            controller = GetComponent<CharacterController>();
-            controller.height = standingHeight;
-            currentSpeed = walkSpeed;
+            isGrounded = Physics.CheckSphere(
+                groundCheck.position,
+                groundCheckRadius,
+                groundMask,
+                QueryTriggerInteraction.Ignore
+            );
         }
-        
-        void Update()
+        else
         {
-            HandleMovement();
-            HandleCrouch();
+            isGrounded = controller.isGrounded;
         }
-        
-        void HandleMovement()
+
+        if (isGrounded && velocity.y < 0f)
         {
-            // Ground check
-            bool isGrounded = controller.isGrounded;
-            
-            // Gravity
-            if (isGrounded && velocity.y < 0)
-            {
-                velocity.y = -2f; // Small downward force to stay grounded
-            }
-            else
-            {
-                velocity.y -= gravity * Time.deltaTime;
-            }
-            
-            // Jump
-            if (isGrounded && Input.GetKeyDown(jumpKey) && !isCrouching)
-            {
-                velocity.y = jumpForce;
-            }
-            
-            // Movement input
-            float horizontal = Input.GetAxis("Horizontal");
-            float vertical = Input.GetAxis("Vertical");
-            
-            // Determine speed
-            if (isCrouching)
-            {
-                currentSpeed = crouchSpeed;
-            }
-            else if (Input.GetKey(sprintKey) && vertical > 0) // Sprint only when moving forward
-            {
-                currentSpeed = sprintSpeed;
-            }
-            else
-            {
-                currentSpeed = walkSpeed;
-            }
-            
-            // Calculate movement direction
-            Vector3 move = transform.right * horizontal + transform.forward * vertical;
-            move = move.normalized * currentSpeed;
-            
-            // Apply movement
-            velocity.x = move.x;
-            velocity.z = move.z;
-            
-            controller.Move(velocity * Time.deltaTime);
+            velocity.y = -2f;
         }
-        
-        void HandleCrouch()
+    }
+
+    private void HandleMovement()
+    {
+        float horizontal = Input.GetAxisRaw("Horizontal");
+        float vertical = Input.GetAxisRaw("Vertical");
+
+        Vector3 inputDir = new Vector3(horizontal, 0f, vertical).normalized;
+        if (inputDir.magnitude >= 0.1f)
         {
-            // Toggle crouch
-            if (Input.GetKeyDown(crouchKey))
+            Vector3 moveDir = transform.TransformDirection(inputDir);
+
+            bool isSprinting = Input.GetKey(KeyCode.LeftShift);
+            currentSpeed = isSprinting ? sprintSpeed : walkSpeed;
+
+            float control = isGrounded ? 1f : airControlMultiplier;
+            Vector3 horizontalVelocity = moveDir * currentSpeed * control;
+            velocity.x = horizontalVelocity.x;
+            velocity.z = horizontalVelocity.z;
+        }
+        else
+        {
+            if (isGrounded)
             {
-                isCrouching = !isCrouching;
+                velocity.x = 0f;
+                velocity.z = 0f;
             }
-            
-            // Smooth height transition
-            float targetHeight = isCrouching ? crouchHeight : standingHeight;
-            controller.height = Mathf.Lerp(controller.height, targetHeight, Time.deltaTime * crouchTransitionSpeed);
-            
-            // Adjust camera/center position if needed
-            controller.center = new Vector3(0, controller.height / 2f, 0);
         }
-        
-        /// <summary>
-        /// Get current movement velocity (for footstep sounds, animations, etc.).
-        /// </summary>
-        public Vector3 GetVelocity()
+    }
+
+    private void HandleJump()
+    {
+        if (Input.GetButtonDown("Jump") && isGrounded)
         {
-            return velocity;
+            velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
-        
-        /// <summary>
-        /// Check if player is currently sprinting.
-        /// </summary>
-        public bool IsSprinting()
-        {
-            return Input.GetKey(sprintKey) && currentSpeed == sprintSpeed;
-        }
-        
-        /// <summary>
-        /// Check if player is crouching.
-        /// </summary>
-        public bool IsCrouching()
-        {
-            return isCrouching;
-        }
+    }
+
+    private void ApplyGravity()
+    {
+        velocity.y += gravity * Time.deltaTime;
     }
 }
