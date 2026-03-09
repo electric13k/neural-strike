@@ -12,13 +12,14 @@ public class Health : MonoBehaviour
     [Header("Health")]
     public float maxHealth = 100f;
     public bool destroyOnDeath = false;
-    public string team = "Team1"; // Add team system
+    public string team = "Team1";
     
     [Header("Events")]
     public DeathEvent onDeath;
     public DamageEvent onDamage;
     
     private float currentHealth;
+    private bool isInvulnerable = false;
     
     public float CurrentHealth => currentHealth;
     public bool IsDead => currentHealth <= 0f;
@@ -32,7 +33,7 @@ public class Health : MonoBehaviour
     
     public void ApplyDamage(float amount, DamageInfo info)
     {
-        if (IsDead) return;
+        if (IsDead || isInvulnerable) return;
         
         currentHealth -= amount;
         currentHealth = Mathf.Max(0f, currentHealth);
@@ -43,6 +44,19 @@ public class Health : MonoBehaviour
         {
             Die(info);
         }
+    }
+    
+    // Legacy method for old scripts
+    public void TakeDamage(float amount, GameObject attacker)
+    {
+        DamageInfo info = new DamageInfo(
+            transform.position,
+            Vector3.zero,
+            Vector3.zero,
+            attacker,
+            null
+        );
+        ApplyDamage(amount, info);
     }
     
     public void Heal(float amount)
@@ -56,6 +70,11 @@ public class Health : MonoBehaviour
     public void SetTeam(string newTeam)
     {
         team = newTeam;
+    }
+    
+    public void SetInvulnerable(bool invulnerable)
+    {
+        isInvulnerable = invulnerable;
     }
     
     private void Die(DamageInfo info)
