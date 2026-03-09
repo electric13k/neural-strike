@@ -2,64 +2,79 @@ using UnityEngine;
 using UnityEngine.Events;
 
 [System.Serializable]
-public class HealthChangedEvent : UnityEvent<float, float> { } // current, max
-[System.Serializable]
-public class DeathEvent : UnityEvent<DamageInfo> { }
+public class DeathEvent : UnityEvent<GameObject> { }
 
-public class Health : MonoBehaviour, IDamageable
+[System.Serializable]
+public class DamageEvent : UnityEvent<float, DamageInfo> { }
+
+public class Health : MonoBehaviour
 {
+    [Header("Health")]
     public float maxHealth = 100f;
     public bool destroyOnDeath = false;
-
+    public string team = "Team1"; // Add team system
+    
     [Header("Events")]
-    public HealthChangedEvent onHealthChanged;
     public DeathEvent onDeath;
-
+    public DamageEvent onDamage;
+    
     private float currentHealth;
-    private bool isDead;
-
+    
+    public float CurrentHealth => currentHealth;
+    public bool IsDead => currentHealth <= 0f;
+    public float HealthPercent => Mathf.Clamp01(currentHealth / maxHealth);
+    public string Team => team;
+    
     private void Awake()
     {
         currentHealth = maxHealth;
-        onHealthChanged.Invoke(currentHealth, maxHealth);
     }
-
-    public void ApplyDamage(float damage, DamageInfo info)
+    
+    public void ApplyDamage(float amount, DamageInfo info)
     {
-        if (isDead) return;
-
-        currentHealth = Mathf.Clamp(currentHealth - damage, 0f, maxHealth);
-        onHealthChanged.Invoke(currentHealth, maxHealth);
-
+        if (IsDead) return;
+        
+        currentHealth -= amount;
+        currentHealth = Mathf.Max(0f, currentHealth);
+        
+        onDamage?.Invoke(amount, info);
+        
         if (currentHealth <= 0f)
         {
             Die(info);
         }
     }
-
+    
     public void Heal(float amount)
     {
-        if (isDead) return;
-
-        currentHealth = Mathf.Clamp(currentHealth + amount, 0f, maxHealth);
-        onHealthChanged.Invoke(currentHealth, maxHealth);
+        if (IsDead) return;
+        
+        currentHealth += amount;
+        currentHealth = Mathf.Min(maxHealth, currentHealth);
     }
-
+    
+    public void SetTeam(string newTeam)
+    {
+        team = newTeam;
+    }
+    
     private void Die(DamageInfo info)
     {
-        if (isDead) return;
-        isDead = true;
-        onDeath.Invoke(info);
-
+        onDeath?.Invoke(info.attacker);
+        
         if (destroyOnDeath)
         {
             Destroy(gameObject);
         }
         else
         {
-            // Placeholder: disable components; you can customize later
-            var cc = GetComponent<CharacterController>();
-            if (cc) cc.enabled = false;
+            gameObject.SetActive(false);
         }
+    }
+    
+    public void Revive()
+    {
+        currentHealth = maxHealth;
+        gameObject.SetActive(true);
     }
 }
