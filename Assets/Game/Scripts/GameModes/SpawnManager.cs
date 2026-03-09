@@ -1,5 +1,4 @@
 using UnityEngine;
-using System.Collections.Generic;
 
 public class SpawnManager : MonoBehaviour
 {
@@ -12,64 +11,25 @@ public class SpawnManager : MonoBehaviour
     public GameObject[] botPrefabs;
     
     [Header("Settings")]
-    public int botsToSpawn = 8;
+    public int botsToSpawn = 4;
     public float spawnDelay = 5f;
     
-    private List<GameObject> spawnedBots = new List<GameObject>();
-    
-    public void SpawnPlayer()
+    public void SpawnInitialBots()
     {
-        if (playerPrefab == null || playerSpawnPoints.Length == 0) return;
-        
-        Transform spawnPoint = playerSpawnPoints[Random.Range(0, playerSpawnPoints.Length)];
-        GameObject player = Instantiate(playerPrefab, spawnPoint.position, spawnPoint.rotation);
-        player.tag = "Player";
-    }
-    
-    public void SpawnBots()
-    {
-        if (botPrefabs.Length == 0 || botSpawnPoints.Length == 0) return;
-        
-        for (int i = 0; i < botsToSpawn; i++)
+        for (int i = 0; i < botsToSpawn && i < botSpawnPoints.Length; i++)
         {
-            SpawnBot();
+            SpawnBot(i);
         }
     }
     
-    public void SpawnBot()
+    private void SpawnBot(int index)
     {
         if (botPrefabs.Length == 0 || botSpawnPoints.Length == 0) return;
         
         GameObject botPrefab = botPrefabs[Random.Range(0, botPrefabs.Length)];
-        Transform spawnPoint = botSpawnPoints[Random.Range(0, botSpawnPoints.Length)];
+        Transform spawnPoint = botSpawnPoints[index % botSpawnPoints.Length];
         
         GameObject bot = Instantiate(botPrefab, spawnPoint.position, spawnPoint.rotation);
-        spawnedBots.Add(bot);
+        bot.name = $"Bot_{index}";
     }
-    
-    public void RespawnEntity(GameObject prefab, bool isPlayer)
-    {
-        Transform[] spawnPoints = isPlayer ? playerSpawnPoints : botSpawnPoints;
-        if (spawnPoints.Length == 0) return;
-        
-        Transform spawnPoint = spawnPoints[Random.Range(0, spawnPoints.Length)];
-        GameObject entity = Instantiate(prefab, spawnPoint.position, spawnPoint.rotation);
-        
-        if (isPlayer)
-            entity.tag = "Player";
-        else
-            spawnedBots.Add(entity);
-    }
-    
-    public void ClearAllBots()
-    {
-        foreach (GameObject bot in spawnedBots)
-        {
-            if (bot != null)
-                Destroy(bot);
-        }
-        spawnedBots.Clear();
-    }
-    
-    public List<GameObject> GetSpawnedBots() { return new List<GameObject>(spawnedBots); }
 }
