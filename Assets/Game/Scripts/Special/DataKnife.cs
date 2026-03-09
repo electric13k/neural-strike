@@ -74,7 +74,7 @@ public class DataKnife : MonoBehaviour
         
         isHacking = true;
         hackProgress = 0f;
-        onHackStart.Invoke(currentTarget);
+        onHackStart?.Invoke(currentTarget);
     }
     
     private void UpdateHack()
@@ -114,7 +114,7 @@ public class DataKnife : MonoBehaviour
         if (currentHackable != null)
         {
             currentHackable.OnHackComplete(gameObject);
-            onHackComplete.Invoke(currentTarget);
+            onHackComplete?.Invoke(currentTarget);
         }
         
         isHacking = false;
@@ -127,7 +127,7 @@ public class DataKnife : MonoBehaviour
     {
         isHacking = false;
         hackProgress = 0f;
-        onHackCancel.Invoke();
+        onHackCancel?.Invoke();
     }
     
     public bool IsHacking() { return isHacking; }

@@ -14,11 +14,17 @@ public class TrackerWeapon : HitscanWeapon
         if (Physics.Raycast(muzzle.position, direction, out RaycastHit hit, range, hitMask, QueryTriggerInteraction.Ignore))
         {
             // Apply damage
-            var damageable = hit.collider.GetComponentInParent<IDamageable>();
-            if (damageable != null)
+            var health = hit.collider.GetComponentInParent<Health>();
+            if (health != null)
             {
-                DamageInfo info = new DamageInfo(hit.point, hit.normal, direction, owner, gameObject);
-                damageable.ApplyDamage(damage, info);
+                DamageInfo info = new DamageInfo(
+                    hit.point,
+                    hit.normal,
+                    direction,
+                    owner,
+                    gameObject
+                );
+                health.ApplyDamage(damage, info);
             }
             
             // Tracker chance
