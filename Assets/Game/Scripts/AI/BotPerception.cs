@@ -3,12 +3,13 @@ using System.Collections.Generic;
 
 /// <summary>
 /// Handles vision and enemy detection for bots.
+/// Uses Health.team (string) to distinguish allies from enemies.
 /// </summary>
 public class BotPerception : MonoBehaviour
 {
     [Header("Vision")]
-    public float visionRange = 30f;
-    public float visionAngle = 90f;
+    public float visionRange  = 30f;
+    public float visionAngle  = 90f;
     public LayerMask targetMask;
     public LayerMask obstacleMask;
 
@@ -45,11 +46,16 @@ public class BotPerception : MonoBehaviour
         Collider[] nearby = Physics.OverlapSphere(transform.position, visionRange, targetMask);
         foreach (Collider col in nearby)
         {
+            if (col.gameObject == gameObject) continue;
+
             Health targetHealth = col.GetComponentInParent<Health>();
             if (targetHealth == null) continue;
-            if (targetHealth == myHealth) continue;
-            if (myHealth != null && targetHealth.team == myHealth.team) continue;
             if (targetHealth.IsDead) continue;
+
+            // Skip same team (string comparison)
+            if (myHealth != null &&
+                !string.IsNullOrEmpty(myHealth.team) &&
+                myHealth.team == targetHealth.team) continue;
 
             if (IsInVisionCone(col.transform))
                 visibleEnemies.Add(col.gameObject);
@@ -58,12 +64,12 @@ public class BotPerception : MonoBehaviour
 
     private bool IsInVisionCone(Transform target)
     {
-        Vector3 direction = (target.position - transform.position).normalized;
-        float angle = Vector3.Angle(transform.forward, direction);
+        Vector3 dir      = (target.position - transform.position).normalized;
+        float   angle    = Vector3.Angle(transform.forward, dir);
         if (angle > visionAngle / 2f) return false;
 
-        float distance = Vector3.Distance(transform.position, target.position);
-        if (Physics.Raycast(transform.position, direction, distance, obstacleMask))
+        float dist = Vector3.Distance(transform.position, target.position);
+        if (Physics.Raycast(transform.position, dir, dist, obstacleMask))
             return false;
 
         return true;
@@ -73,14 +79,14 @@ public class BotPerception : MonoBehaviour
     {
         if (visibleEnemies.Count == 0) return null;
 
-        GameObject closest = null;
-        float closestDist = float.MaxValue;
+        GameObject closest     = null;
+        float      closestDist = float.MaxValue;
 
-        foreach (GameObject enemy in visibleEnemies)
+        foreach (GameObject e in visibleEnemies)
         {
-            if (enemy == null) continue;
-            float d = Vector3.Distance(transform.position, enemy.transform.position);
-            if (d < closestDist) { closestDist = d; closest = enemy; }
+            if (e == null) continue;
+            float d = Vector3.Distance(transform.position, e.transform.position);
+            if (d < closestDist) { closestDist = d; closest = e; }
         }
         return closest;
     }
@@ -96,5 +102,7 @@ public class BotPerception : MonoBehaviour
         Gizmos.color = Color.cyan;
         Gizmos.DrawLine(transform.position, transform.position + left);
         Gizmos.DrawLine(transform.position, transform.position + right);
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(transform.position, hearingRange);
     }
 }
