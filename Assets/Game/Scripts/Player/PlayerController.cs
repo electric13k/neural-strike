@@ -4,27 +4,29 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement")]
-    public float walkSpeed = 5f;
-    public float sprintSpeed = 8f;
-    public float jumpHeight = 1.5f;
-    public float gravity = -9.81f;
+    public float walkSpeed        = 5f;
+    public float sprintSpeed      = 8f;
+    public float jumpHeight       = 1.5f;
+    public float gravity          = -9.81f;  // Earth gravity
     public float airControlMultiplier = 0.5f;
+
+    [Header("Jump Skills (set by loadout)")]
+    [Tooltip("0 = normal, 1 = double jump, 2 = triple jump")]
+    [Range(0, 2)] public int jumpSkillLevel = 0;
 
     [Header("Ground Check")]
     public Transform groundCheck;
     public float groundCheckRadius = 0.3f;
     public LayerMask groundMask;
 
-    private CharacterController controller;
-    private Vector3 velocity;
-    private bool isGrounded;
-    private float currentSpeed;
+    private CharacterController _cc;
+    private Vector3 _velocity;
+    private bool    _isGrounded;
+    private int     _jumpsUsed;
 
-    private void Awake()
-    {
-        controller = GetComponent<CharacterController>();
-        currentSpeed = walkSpeed;
-    }
+    private int MaxJumps => 1 + Mathf.Clamp(jumpSkillLevel, 0, 2);
+
+    private void Awake() => _cc = GetComponent<CharacterController>();
 
     private void Update()
     {
@@ -32,69 +34,58 @@ public class PlayerController : MonoBehaviour
         HandleMovement();
         HandleJump();
         ApplyGravity();
-        controller.Move(velocity * Time.deltaTime);
+        _cc.Move(_velocity * Time.deltaTime);
     }
 
     private void HandleGroundCheck()
     {
-        if (groundCheck != null)
-        {
-            isGrounded = Physics.CheckSphere(
-                groundCheck.position,
-                groundCheckRadius,
-                groundMask,
-                QueryTriggerInteraction.Ignore
-            );
-        }
-        else
-        {
-            isGrounded = controller.isGrounded;
-        }
+        _isGrounded = groundCheck != null
+            ? Physics.CheckSphere(groundCheck.position, groundCheckRadius,
+                  groundMask, QueryTriggerInteraction.Ignore)
+            : _cc.isGrounded;
 
-        if (isGrounded && velocity.y < 0f)
+        if (_isGrounded && _velocity.y < 0f)
         {
-            velocity.y = -2f;
+            _velocity.y  = -2f;
+            _jumpsUsed   = 0;   // reset multi-jump counter on land
         }
     }
 
     private void HandleMovement()
     {
-        float horizontal = Input.GetAxisRaw("Horizontal");
-        float vertical = Input.GetAxisRaw("Vertical");
+        float h = Input.GetAxisRaw("Horizontal");
+        float v = Input.GetAxisRaw("Vertical");
+        Vector3 dir = new Vector3(h, 0f, v).normalized;
 
-        Vector3 inputDir = new Vector3(horizontal, 0f, vertical).normalized;
-        if (inputDir.magnitude >= 0.1f)
+        if (dir.magnitude >= 0.1f)
         {
-            Vector3 moveDir = transform.TransformDirection(inputDir);
-
-            bool isSprinting = Input.GetKey(KeyCode.LeftShift);
-            currentSpeed = isSprinting ? sprintSpeed : walkSpeed;
-
-            float control = isGrounded ? 1f : airControlMultiplier;
-            Vector3 horizontalVelocity = moveDir * currentSpeed * control;
-            velocity.x = horizontalVelocity.x;
-            velocity.z = horizontalVelocity.z;
+            float spd     = Input.GetKey(KeyCode.LeftShift) ? sprintSpeed : walkSpeed;
+            float control = _isGrounded ? 1f : airControlMultiplier;
+            Vector3 move  = transform.TransformDirection(dir) * spd * control;
+            _velocity.x   = move.x;
+            _velocity.z   = move.z;
         }
-        else
+        else if (_isGrounded)
         {
-            if (isGrounded)
-            {
-                velocity.x = 0f;
-                velocity.z = 0f;
-            }
+            _velocity.x = _velocity.z = 0f;
         }
     }
 
     private void HandleJump()
     {
-        if (Input.GetButtonDown("Jump") && isGrounded)
-        {
-            velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
-        }
+        if (!Input.GetButtonDown("Jump")) return;
+
+        // Allow jump if: on ground, OR extra air jumps still available
+        bool canJump = _isGrounded || _jumpsUsed < MaxJumps - 1;
+        if (!canJump) return;
+
+        _velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+        if (!_isGrounded) _jumpsUsed++;   // ground jump does not consume air count
+        else              _jumpsUsed = 1; // first jump counts as 1 used
     }
 
     private void ApplyGravity()
     {
-        velocity.y += gravity * Time.deltaTime;
+        _velocity.y += gravity * Time.deltaTime;
     }
 }
