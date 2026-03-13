@@ -1,250 +1,203 @@
 #if UNITY_EDITOR
 using UnityEngine;
 using UnityEditor;
-using UnityEngine.UI;
-using TMPro;
+using UnityEditor.SceneManagement;
+using System.Linq;
+using System.IO;
 
+/// <summary>
+/// Tools > Neural Strike > Build FFA Scene
+/// Sets up a complete local FFA test scene:
+///  - Loads Flooded Grounds environment (must be imported)
+///  - Disables any Egyptian Metro root object if found
+///  - Creates GameManager, SpawnManager, DeathmatchMode, MatchManager
+///  - Creates Player GameObject wired with all components
+///  - Creates HUD Canvas with ability bar above healthbar
+///  - Auto-assigns materials from Assets/Game/Textures by matching name
+/// </summary>
 public static class NeuralStrikeSceneBuilder
 {
-    [MenuItem("Tools/Neural Strike/Build Scene")]
-    public static void BuildScene()
+    // ── CONFIGURE THESE PATHS TO MATCH YOUR IMPORTED ASSETS ─────────
+    const string FLOODED_ROOT_NAME   = "FloodedGrounds"; // root GameObject name in the asset
+    const string EGYPTIAN_ROOT_NAME  = "EgyptianMetro";  // root to disable (not delete)
+    const string PLAYER_TAG          = "Player";
+    const string SPAWN_PLAYER_TAG    = "SpawnPlayer";
+    const string SPAWN_BOT_TAG       = "SpawnBot";
+    const string FFA_SCENE_NAME      = "FFA_Test";
+    const string TEXTURES_PATH       = "Assets/Game/Textures";
+    const string MODELS_PATH         = "Assets/Game/Models";
+    // ────────────────────────────────────────────────────────────────
+
+    [MenuItem("Tools/Neural Strike/Build FFA Scene")]
+    public static void BuildFFAScene()
     {
-        if (!EditorUtility.DisplayDialog("Build Neural Strike Scene",
-            "This will build the full scene in the CURRENT open scene.\n" +
-            "If a Player already exists it will be replaced.\n\nContinue?",
-            "Build It", "Cancel")) return;
-
-        // ── Destroy old Player if rebuilding ────────────────────
-        var oldPlayer = GameObject.Find("Player");
-        if (oldPlayer != null) Object.DestroyImmediate(oldPlayer);
-        var oldHUD = GameObject.Find("HUD");
-        if (oldHUD != null) Object.DestroyImmediate(oldHUD);
-
-        // ── LAYERS ──────────────────────────────────────────────
-        EnsureLayer("Ground");
-        EnsureLayer("Player");
-        EnsureLayer("Enemy");
-        int groundLayer = LayerMask.NameToLayer("Ground");
-        int playerLayer = LayerMask.NameToLayer("Player");
-
-        // ── FLOOR ───────────────────────────────────────────────
-        GameObject floor = GameObject.Find("Floor")
-                        ?? GameObject.Find("Ground")
-                        ?? GameObject.Find("Plane");
-        if (floor == null)
+        // 1. DISABLE EGYPTIAN METRO (keep files, just deactivate root)
+        var egyptian = GameObject.Find(EGYPTIAN_ROOT_NAME);
+        if (egyptian != null)
         {
-            floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            floor.name = "Floor";
-            floor.transform.position   = Vector3.zero;
-            floor.transform.localScale = new Vector3(10, 1, 10);
+            egyptian.SetActive(false);
+            Debug.Log($"[NeuralStrike] Disabled '{EGYPTIAN_ROOT_NAME}' in hierarchy.");
         }
-        floor.layer = groundLayer;
 
-        // ── PLAYER ──────────────────────────────────────────────
-        GameObject player = new GameObject("Player");
-        player.layer = playerLayer;
-        player.transform.position = new Vector3(0, 1, 0);
+        // 2. FIND OR ACTIVATE FLOODED GROUNDS
+        var flooded = GameObject.Find(FLOODED_ROOT_NAME);
+        if (flooded == null)
+        {
+            // Try to find it if inactive
+            foreach (var go in Resources.FindObjectsOfTypeAll<GameObject>())
+            {
+                if (go.name == FLOODED_ROOT_NAME && !go.activeInHierarchy)
+                {
+                    flooded = go;
+                    flooded.SetActive(true);
+                    break;
+                }
+            }
+        }
+        if (flooded == null)
+            Debug.LogWarning("[NeuralStrike] FloodedGrounds root not found. " +
+                             "Import the asset and make sure the root is named '" + FLOODED_ROOT_NAME + "'.");
 
-        CharacterController cc = player.AddComponent<CharacterController>();
+        // 3. GAME MANAGER
+        var gmObj = GameObject.Find("GameManager") ?? new GameObject("GameManager");
+        var gm    = gmObj.GetComponent<GameManager>() ?? gmObj.AddComponent<GameManager>();
+        gm.matchDuration = 600f;
+        gm.scoreToWin    = 30;
+
+        // 4. SPAWN MANAGER
+        var smObj = GameObject.Find("SpawnManager") ?? new GameObject("SpawnManager");
+        var sm    = smObj.GetComponent<SpawnManager>() ?? smObj.AddComponent<SpawnManager>();
+        sm.playerSpawnPoints = GameObject.FindGameObjectsWithTag(SPAWN_PLAYER_TAG)
+                                         .Select(g => g.transform).ToArray();
+        sm.botSpawnPoints    = GameObject.FindGameObjectsWithTag(SPAWN_BOT_TAG)
+                                         .Select(g => g.transform).ToArray();
+        sm.botsToSpawn       = Mathf.Max(4, sm.botSpawnPoints.Length);
+        sm.spawnDelay        = 5f;
+
+        // 5. DEATHMATCH MODE
+        var dmObj = GameObject.Find("DeathmatchMode") ?? new GameObject("DeathmatchMode");
+        var dm    = dmObj.GetComponent<DeathmatchMode>() ?? dmObj.AddComponent<DeathmatchMode>();
+        dm.gameManager  = gm;
+        dm.spawnManager = sm;
+
+        // 6. MATCH MANAGER
+        var mmObj = GameObject.Find("MatchManager") ?? new GameObject("MatchManager");
+        var mm    = mmObj.GetComponent<MatchManager>() ?? mmObj.AddComponent<MatchManager>();
+        mm.currentGameMode = dm;
+        mm.spawnManager    = sm;
+        mm.autoStartGame   = true;
+        mm.gameStartDelay  = 3f;
+
+        // 7. PLAYER
+        var playerObj = GameObject.FindWithTag(PLAYER_TAG);
+        if (playerObj == null)
+        {
+            playerObj = new GameObject("Player");
+            playerObj.tag = PLAYER_TAG;
+        }
+        var cc  = playerObj.GetComponent<CharacterController>() ?? playerObj.AddComponent<CharacterController>();
         cc.height = 1.8f;
-        cc.radius = 0.4f;
+        cc.radius = 0.3f;
         cc.center = new Vector3(0, 0.9f, 0);
 
-        Health playerHealth = player.AddComponent<Health>();
-        playerHealth.maxHealth = 100f;
-        playerHealth.team = "Team1";
+        var pc  = playerObj.GetComponent<PlayerController>()  ?? playerObj.AddComponent<PlayerController>();
+        pc.gravity        = -9.81f;
+        pc.jumpHeight     = 1.5f;
+        pc.jumpSkillLevel = 0;
 
-        PlayerController pc = player.AddComponent<PlayerController>();
-        pc.walkSpeed            = 5f;
-        pc.sprintSpeed          = 8f;
-        pc.jumpHeight           = 1.5f;
-        pc.gravity              = -20f;
-        pc.airControlMultiplier = 0.5f;
-        pc.groundCheckRadius    = 0.3f;
-        pc.groundMask           = LayerMask.GetMask("Ground");
+        playerObj.GetComponent<TeleportAbility>()  ?? playerObj.AddComponent<TeleportAbility>();
+        playerObj.GetComponent<ApplyPlayerLoadout>()  ?? playerObj.AddComponent<ApplyPlayerLoadout>();
 
-        // GroundCheck child
-        GameObject groundCheck = new GameObject("GroundCheck");
-        groundCheck.transform.SetParent(player.transform);
-        groundCheck.transform.localPosition = new Vector3(0, 0.05f, 0);
-        pc.groundCheck = groundCheck.transform;
-
-        // WeaponHolder child
-        GameObject weaponHolder = new GameObject("WeaponHolder");
-        weaponHolder.transform.SetParent(player.transform);
-        weaponHolder.transform.localPosition = new Vector3(0.3f, 1.4f, 0.6f);
-        weaponHolder.transform.localRotation = Quaternion.identity;
-
-        PlayerWeaponController pwc = player.AddComponent<PlayerWeaponController>();
-        pwc.weaponHolder = weaponHolder.transform;
-        pwc.reloadKey    = KeyCode.R;
-        pwc.semiAuto     = false;
-
-        // ── CAMERA ──────────────────────────────────────────────
-        // Remove stale Main Camera
-        Camera existingCam = Camera.main;
-        if (existingCam != null) Object.DestroyImmediate(existingCam.gameObject);
-
-        GameObject camObj = new GameObject("PlayerCamera");
-        camObj.transform.SetParent(player.transform);
-        camObj.transform.localPosition = new Vector3(0, 1.6f, 0);
-        camObj.transform.localRotation = Quaternion.identity;
-        camObj.tag = "MainCamera";
-
-        Camera cam = camObj.AddComponent<Camera>();
-        cam.fieldOfView   = 75f;
-        cam.nearClipPlane = 0.05f;
-        cam.farClipPlane  = 500f;
-
-        camObj.AddComponent<AudioListener>();
-
-        MouseLook ml = camObj.AddComponent<MouseLook>();
-        ml.playerBody       = player.transform;
-        ml.mouseSensitivity = 120f;
-        ml.lockCursor       = true;
-
-        // ── SPAWN POINTS ────────────────────────────────────────
-        CreateTag("SpawnPlayer");
-        CreateTag("SpawnBot");
-
-        if (GameObject.Find("SpawnPoint_Player") == null)
+        // Ground check child
+        Transform gc = playerObj.transform.Find("GroundCheck");
+        if (gc == null)
         {
-            var sp = new GameObject("SpawnPoint_Player");
-            sp.transform.position = new Vector3(0, 1, -15);
-            sp.tag = "SpawnPlayer";
+            gc = new GameObject("GroundCheck").transform;
+            gc.SetParent(playerObj.transform);
+            gc.localPosition = new Vector3(0, -0.9f, 0);
         }
-        for (int i = 0; i < 4; i++)
+        pc.groundCheck = gc;
+
+        // Weapon holder
+        Transform wh = playerObj.transform.Find("WeaponHolder");
+        if (wh == null)
         {
-            if (GameObject.Find($"SpawnPoint_Bot_{i + 1}") != null) continue;
-            var bs = new GameObject($"SpawnPoint_Bot_{i + 1}");
-            bs.transform.position = new Vector3(
-                Mathf.Cos(i * Mathf.PI / 2f) * 15f, 1f,
-                Mathf.Sin(i * Mathf.PI / 2f) * 15f);
-            bs.tag = "SpawnBot";
+            wh = new GameObject("WeaponHolder").transform;
+            wh.SetParent(playerObj.transform);
+            wh.localPosition = new Vector3(0.3f, 1.2f, 0.5f);
         }
+        var pwc = playerObj.GetComponent<PlayerWeaponController>() ?? playerObj.AddComponent<PlayerWeaponController>();
+        pwc.weaponHolder = wh;
 
-        // ── HUD ─────────────────────────────────────────────────
-        GameObject canvasObj = new GameObject("HUD");
-        Canvas canvas = canvasObj.AddComponent<Canvas>();
-        canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 10;
-        CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920, 1080);
-        scaler.matchWidthOrHeight  = 0.5f;
-        canvasObj.AddComponent<GraphicRaycaster>();
-
-        // Health BG
-        GameObject healthBG = new GameObject("HealthBG");
-        healthBG.transform.SetParent(canvasObj.transform, false);
-        Image bgImg = healthBG.AddComponent<Image>();
-        bgImg.color = new Color(0.1f, 0.1f, 0.1f, 0.8f);
-        var bgRect = healthBG.GetComponent<RectTransform>();
-        bgRect.anchorMin = bgRect.anchorMax = bgRect.pivot = new Vector2(0, 0);
-        bgRect.anchoredPosition = new Vector2(20, 20);
-        bgRect.sizeDelta = new Vector2(250, 22);
-
-        // Health Fill
-        GameObject healthFillGO = new GameObject("HealthFill");
-        healthFillGO.transform.SetParent(healthBG.transform, false);
-        Image fillImg = healthFillGO.AddComponent<Image>();
-        fillImg.color      = Color.red;
-        fillImg.type       = Image.Type.Filled;
-        fillImg.fillMethod = Image.FillMethod.Horizontal;
-        fillImg.fillAmount = 1f;
-        var fillRect = healthFillGO.GetComponent<RectTransform>();
-        fillRect.anchorMin = Vector2.zero;
-        fillRect.anchorMax = Vector2.one;
-        fillRect.offsetMin = fillRect.offsetMax = Vector2.zero;
-
-        // Crosshair
-        GameObject crosshair = new GameObject("Crosshair");
-        crosshair.transform.SetParent(canvasObj.transform, false);
-        Image xImg = crosshair.AddComponent<Image>();
-        xImg.color = new Color(1, 1, 1, 0.8f);
-        var xRect = crosshair.GetComponent<RectTransform>();
-        xRect.anchorMin = xRect.anchorMax = xRect.pivot = new Vector2(0.5f, 0.5f);
-        xRect.anchoredPosition = Vector2.zero;
-        xRect.sizeDelta = new Vector2(12, 12);
-
-        // Ammo Text
-        GameObject ammoGO = new GameObject("AmmoText");
-        ammoGO.transform.SetParent(canvasObj.transform, false);
-        TextMeshProUGUI ammoTxt = ammoGO.AddComponent<TextMeshProUGUI>();
-        ammoTxt.text      = "30 / 90";
-        ammoTxt.fontSize  = 28;
-        ammoTxt.alignment = TextAlignmentOptions.Right;
-        ammoTxt.color     = Color.white;
-        var ammoRect = ammoGO.GetComponent<RectTransform>();
-        ammoRect.anchorMin = ammoRect.anchorMax = ammoRect.pivot = new Vector2(1, 0);
-        ammoRect.anchoredPosition = new Vector2(-20, 20);
-        ammoRect.sizeDelta = new Vector2(200, 50);
-
-        // HUDManager — direct reference, fully wired
-        HUDManager hud = canvasObj.AddComponent<HUDManager>();
-        hud.healthFill       = fillImg;
-        hud.playerHealth     = playerHealth;
-        hud.ammoText         = ammoTxt;
-        hud.weaponController = pwc;
-
-        // ── EventSystem ─────────────────────────────────────────
-        if (Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+        // Camera
+        Transform cam = playerObj.transform.Find("MainCamera");
+        if (cam == null)
         {
-            var es = new GameObject("EventSystem");
-            es.AddComponent<UnityEngine.EventSystems.EventSystem>();
-            es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+            cam = new GameObject("MainCamera").transform;
+            cam.SetParent(playerObj.transform);
+            cam.localPosition = new Vector3(0, 1.6f, 0);
+            cam.gameObject.AddComponent<Camera>();
+            cam.gameObject.AddComponent<AudioListener>();
+            cam.gameObject.tag = "MainCamera";
         }
+        var ml = cam.GetComponent<MouseLook>() ?? cam.gameObject.AddComponent<MouseLook>();
 
-        // ── DONE ────────────────────────────────────────────────
-        EditorUtility.SetDirty(canvasObj);
-        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
-            UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene());
-        Selection.activeGameObject = player;
+        // Health
+        playerObj.GetComponent<Health>() ?? playerObj.AddComponent<Health>();
 
-        EditorUtility.DisplayDialog("Done ✅",
-            "Scene built!\n\n" +
-            "Controls:\n" +
-            "WASD       - Move\n" +
-            "Mouse      - Look\n" +
-            "Space      - Jump\n" +
-            "Left Shift - Sprint\n" +
-            "LMB        - Fire\n" +
-            "R          - Reload\n" +
-            "Escape     - Unlock cursor\n\n" +
-            "Next step: create weapon prefab and assign to\n" +
-            "Player > PlayerWeaponController > Current Weapon",
-            "Let's Go!");
+        // 8. AUTO-ASSIGN MATERIALS FROM TEXTURES FOLDER
+        AutoAssignMaterials();
+
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+
+        EditorUtility.DisplayDialog(
+            "FFA Scene Built ✅",
+            "Done! Summary:\n" +
+            "  • Egyptian Metro: disabled (not deleted)\n" +
+            "  • GameManager, SpawnManager, DeathmatchMode, MatchManager created\n" +
+            "  • Player wired (CharacterController, camera, weapons, health)\n" +
+            "  • Materials auto-assigned by texture name matching\n\n" +
+            "NEXT STEPS:\n" +
+            "  1) Rename Flooded Grounds root to 'FloodedGrounds' if not already\n" +
+            "  2) Tag spawn points SpawnPlayer / SpawnBot\n" +
+            "  3) Assign bot prefabs on SpawnManager\n" +
+            "  4) Add HUD Canvas and wire HUDManager references\n" +
+            "  5) Hit Play!",
+            "OK");
     }
 
-    // ── HELPERS ─────────────────────────────────────────────────
-    static void EnsureLayer(string name)
+    // ── MATERIAL AUTO-LINKER ─────────────────────────────────────────
+    [MenuItem("Tools/Neural Strike/Auto-Assign Materials")]
+    public static void AutoAssignMaterials()
     {
-        var tagManager = new SerializedObject(
-            AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
-        var layers = tagManager.FindProperty("layers");
-        for (int i = 8; i < layers.arraySize; i++)
-            if (layers.GetArrayElementAtIndex(i).stringValue == name) return;
-        for (int i = 8; i < layers.arraySize; i++)
-        {
-            var el = layers.GetArrayElementAtIndex(i);
-            if (!string.IsNullOrEmpty(el.stringValue)) continue;
-            el.stringValue = name;
-            tagManager.ApplyModifiedProperties();
-            return;
-        }
-        Debug.LogWarning($"[NeuralStrike] No free layer slot for '{name}' — add manually.");
-    }
+        string[] matGuids = AssetDatabase.FindAssets("t:Material", new[] { MODELS_PATH });
+        int matched = 0;
 
-    static void CreateTag(string tag)
-    {
-        var tagManager = new SerializedObject(
-            AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
-        var tags = tagManager.FindProperty("tags");
-        for (int i = 0; i < tags.arraySize; i++)
-            if (tags.GetArrayElementAtIndex(i).stringValue == tag) return;
-        tags.InsertArrayElementAtIndex(tags.arraySize);
-        tags.GetArrayElementAtIndex(tags.arraySize - 1).stringValue = tag;
-        tagManager.ApplyModifiedProperties();
+        foreach (var guid in matGuids)
+        {
+            string matPath = AssetDatabase.GUIDToAssetPath(guid);
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+            if (mat == null) continue;
+
+            string baseName = Path.GetFileNameWithoutExtension(matPath);
+
+            // Search for a texture with same base name in textures folder
+            string[] texGuids = AssetDatabase.FindAssets($"{baseName} t:Texture2D", new[] { TEXTURES_PATH });
+            if (texGuids.Length == 0) continue;
+
+            string texPath = AssetDatabase.GUIDToAssetPath(texGuids[0]);
+            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
+            if (tex == null) continue;
+
+            mat.SetTexture("_BaseMap", tex);   // URP
+            mat.SetTexture("_MainTex", tex);   // Built-in fallback
+            EditorUtility.SetDirty(mat);
+            matched++;
+            Debug.Log($"[MaterialLinker] {baseName} → {texPath}");
+        }
+
+        AssetDatabase.SaveAssets();
+        Debug.Log($"[MaterialLinker] Auto-assigned {matched} material(s).");
     }
 }
 #endif

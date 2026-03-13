@@ -1,119 +1,129 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using TMPro;
+using System.Collections.Generic;
 
 /// <summary>
-/// Main menu controller.
-/// Uses 3D Modern Menu UI package buttons (assign in Inspector).
-/// Persists loadout via PlayerLoadout singleton.
+/// Main Menu loadout screen:
+///  - Choose weapon / melee / bot (drag prefabs to arrays in Inspector)
+///  - Skill points: 3 total for jump(0-3) and teleport(0-3)
+///  - Grenade points: 4 total across up to 4 types
+///  - Play button loads FFA_Test scene
 /// </summary>
 public class MainMenuController : MonoBehaviour
 {
     [Header("Loadout Reference")]
     public PlayerLoadout loadout;
 
-    [Header("Skill Display")]
-    public TextMeshProUGUI jumpValueText;
-    public TextMeshProUGUI teleportValueText;
-    public TextMeshProUGUI skillPointsLeftText;
+    // ── SKILLS ──────────────────────────────────────────────────────
+    [Header("Skill UI")]
+    public TMP_Text jumpLevelText;
+    public TMP_Text teleportLevelText;
+    public TMP_Text skillPointsLeftText;
 
-    [Header("Grenade Rows (optional - wire 6 rows)")]
-    public TextMeshProUGUI[] grenadeCountTexts;   // one per GrenadeSlot
-    public TextMeshProUGUI   grenadePointsLeftText;
+    // ── GRENADE SLOTS ────────────────────────────────────────────────
+    [Header("Grenade Slot UI (4 slots)")]
+    public TMP_Text[] grenadeCountTexts;  // one per grenade slot
+    public TMP_Text   grenadePointsLeftText;
 
-    [Header("Weapon / Melee / Bot (assign prefabs)")]
-    public GameObject[] weaponPrefabOptions;      // populate in Inspector
-    public GameObject[] meleePrefabOptions;
-    public GameObject[] botPrefabOptions;
+    // ── WEAPON / MELEE / BOT SELECTION ──────────────────────────────
+    [Header("Weapon Choices")]
+    public List<GameObject> availableWeapons;
+    public TMP_Text weaponNameText;
+    private int weaponIndex = 0;
 
-    [Header("Navigation")]
-    public Button playFfaButton;
+    [Header("Melee Choices")]
+    public List<GameObject> availableMelees;
+    public TMP_Text meleeNameText;
+    private int meleeIndex = 0;
+
+    [Header("Bot Choices")]
+    public List<GameObject> availableBots;
+    public TMP_Text botNameText;
+    private int botIndex = 0;
+
+    // ── SCENE ────────────────────────────────────────────────────────
+    [Header("Scene")]
     public string ffaSceneName = "FFA_Test";
+    public Button playButton;
 
     private void Start()
     {
         if (loadout == null)
             loadout = FindObjectOfType<PlayerLoadout>();
 
-        // Default weapon/bot selection if nothing is chosen yet
-        if (loadout.primaryWeaponPrefab == null && weaponPrefabOptions.Length > 0)
-            loadout.primaryWeaponPrefab = weaponPrefabOptions[0];
-        if (loadout.botPrefab == null && botPrefabOptions.Length > 0)
-            loadout.botPrefab = botPrefabOptions[0];
-
-        playFfaButton.onClick.AddListener(OnPlayFFA);
-        RefreshAll();
-    }
-
-    // ── Skill buttons ───────────────────────────────────────────────
-    public void OnIncreaseJump()     => TrySkills(loadout.jumpSkillPoints + 1, loadout.teleportSkillPoints);
-    public void OnDecreaseJump()     => TrySkills(Mathf.Max(0, loadout.jumpSkillPoints - 1), loadout.teleportSkillPoints);
-    public void OnIncreaseTeleport() => TrySkills(loadout.jumpSkillPoints, loadout.teleportSkillPoints + 1);
-    public void OnDecreaseTeleport() => TrySkills(loadout.jumpSkillPoints, Mathf.Max(0, loadout.teleportSkillPoints - 1));
-
-    private void TrySkills(int j, int t)
-    {
-        loadout.TrySetSkills(j, t);
-        RefreshAll();
-    }
-
-    // ── Grenade buttons (call with slot index from UI) ─────────────────
-    public void IncreaseGrenade(int slotIndex)
-    {
-        int pts = slotIndex < loadout.grenadeSlots.Count
-                  ? loadout.grenadeSlots[slotIndex].points + 1 : 0;
-        loadout.TrySetGrenadePoints(slotIndex, pts);
-        RefreshAll();
-    }
-
-    public void DecreaseGrenade(int slotIndex)
-    {
-        if (slotIndex >= loadout.grenadeSlots.Count) return;
-        int pts = Mathf.Max(0, loadout.grenadeSlots[slotIndex].points - 1);
-        loadout.TrySetGrenadePoints(slotIndex, pts);
-        RefreshAll();
-    }
-
-    // ── Weapon / Melee / Bot selectors ───────────────────────────────
-    public void SelectWeapon(int index)
-    {
-        if (index >= 0 && index < weaponPrefabOptions.Length)
-            loadout.primaryWeaponPrefab = weaponPrefabOptions[index];
-    }
-
-    public void SelectMelee(int index)
-    {
-        if (index >= 0 && index < meleePrefabOptions.Length)
-            loadout.meleeWeaponPrefab = meleePrefabOptions[index];
-    }
-
-    public void SelectBot(int index)
-    {
-        if (index >= 0 && index < botPrefabOptions.Length)
-            loadout.botPrefab = botPrefabOptions[index];
-    }
-
-    // ── Play ─────────────────────────────────────────────────────────
-    private void OnPlayFFA()
-    {
-        UnityEngine.SceneManagement.SceneManager.LoadScene(ffaSceneName);
-    }
-
-    // ── Refresh UI ─────────────────────────────────────────────────
-    private void RefreshAll()
-    {
-        if (jumpValueText)      jumpValueText.text      = loadout.jumpSkillPoints.ToString();
-        if (teleportValueText)  teleportValueText.text  = loadout.teleportSkillPoints.ToString();
-        if (skillPointsLeftText)
-            skillPointsLeftText.text = (PlayerLoadout.MaxSkillPoints - loadout.CurrentSkillPoints).ToString() + " left";
-
-        for (int i = 0; i < grenadeCountTexts?.Length; i++)
+        if (loadout == null)
         {
-            if (grenadeCountTexts[i] == null || i >= loadout.grenadeSlots.Count) continue;
-            grenadeCountTexts[i].text = loadout.grenadeSlots[i].points.ToString();
+            var go = new GameObject("LoadoutManager");
+            loadout = go.AddComponent<PlayerLoadout>();
         }
 
-        if (grenadePointsLeftText)
-            grenadePointsLeftText.text = (PlayerLoadout.MaxGrenadePoints - loadout.CurrentGrenadePoints).ToString() + " left";
+        RefreshAll();
+        playButton?.onClick.AddListener(OnPlay);
+    }
+
+    // ── SKILLS ──
+    public void OnIncreaseJump()     => TrySkill(loadout.jumpSkillPoints + 1, loadout.teleportSkillPoints);
+    public void OnDecreaseJump()     => TrySkill(loadout.jumpSkillPoints - 1, loadout.teleportSkillPoints);
+    public void OnIncreaseTeleport() => TrySkill(loadout.jumpSkillPoints,     loadout.teleportSkillPoints + 1);
+    public void OnDecreaseTeleport() => TrySkill(loadout.jumpSkillPoints,     loadout.teleportSkillPoints - 1);
+
+    private void TrySkill(int j, int t)
+    {
+        loadout.TrySetSkills(j, t);
+        RefreshSkillUI();
+    }
+
+    private void RefreshSkillUI()
+    {
+        if (jumpLevelText)     jumpLevelText.text     = loadout.jumpSkillPoints.ToString();
+        if (teleportLevelText) teleportLevelText.text = loadout.teleportSkillPoints.ToString();
+        int left = loadout.MaxSkillPoints - loadout.CurrentSkillPoints;
+        if (skillPointsLeftText) skillPointsLeftText.text = $"{left} pts left";
+    }
+
+    // ── GRENADES ──
+    public void OnIncreaseGrenade(int slot) { loadout.TrySetGrenadePoints(slot, loadout.grenades[slot].points + 1); RefreshGrenadeUI(); }
+    public void OnDecreaseGrenade(int slot) { loadout.TrySetGrenadePoints(slot, loadout.grenades[slot].points - 1); RefreshGrenadeUI(); }
+
+    private void RefreshGrenadeUI()
+    {
+        for (int i = 0; i < grenadeCountTexts.Length && i < loadout.grenades.Count; i++)
+        {
+            if (grenadeCountTexts[i] != null)
+                grenadeCountTexts[i].text = loadout.grenades[i].points.ToString();
+        }
+        int left = loadout.MaxGrenadePoints - loadout.CurrentGrenadePoints;
+        if (grenadePointsLeftText) grenadePointsLeftText.text = $"{left} pts left";
+    }
+
+    // ── WEAPON ──
+    public void OnNextWeapon() { if (availableWeapons.Count == 0) return; weaponIndex = (weaponIndex + 1) % availableWeapons.Count; loadout.primaryWeaponPrefab = availableWeapons[weaponIndex]; RefreshWeaponUI(); }
+    public void OnPrevWeapon() { if (availableWeapons.Count == 0) return; weaponIndex = (weaponIndex - 1 + availableWeapons.Count) % availableWeapons.Count; loadout.primaryWeaponPrefab = availableWeapons[weaponIndex]; RefreshWeaponUI(); }
+    private void RefreshWeaponUI() { if (weaponNameText && availableWeapons.Count > 0) weaponNameText.text = availableWeapons[weaponIndex].name; }
+
+    // ── MELEE ──
+    public void OnNextMelee() { if (availableMelees.Count == 0) return; meleeIndex = (meleeIndex + 1) % availableMelees.Count; loadout.meleePrefab = availableMelees[meleeIndex]; RefreshMeleeUI(); }
+    public void OnPrevMelee() { if (availableMelees.Count == 0) return; meleeIndex = (meleeIndex - 1 + availableMelees.Count) % availableMelees.Count; loadout.meleePrefab = availableMelees[meleeIndex]; RefreshMeleeUI(); }
+    private void RefreshMeleeUI() { if (meleeNameText && availableMelees.Count > 0) meleeNameText.text = availableMelees[meleeIndex].name; }
+
+    // ── BOT ──
+    public void OnNextBot() { if (availableBots.Count == 0) return; botIndex = (botIndex + 1) % availableBots.Count; loadout.botPrefab = availableBots[botIndex]; RefreshBotUI(); }
+    public void OnPrevBot() { if (availableBots.Count == 0) return; botIndex = (botIndex - 1 + availableBots.Count) % availableBots.Count; loadout.botPrefab = availableBots[botIndex]; RefreshBotUI(); }
+    private void RefreshBotUI() { if (botNameText && availableBots.Count > 0) botNameText.text = availableBots[botIndex].name; }
+
+    private void RefreshAll()
+    {
+        RefreshSkillUI();
+        RefreshGrenadeUI();
+        RefreshWeaponUI();
+        RefreshMeleeUI();
+        RefreshBotUI();
+    }
+
+    private void OnPlay()
+    {
+        SceneManager.LoadScene(ffaSceneName);
     }
 }

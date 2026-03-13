@@ -3,12 +3,12 @@ using UnityEngine;
 public class PlayerWeaponController : MonoBehaviour
 {
     [Header("Weapon")]
-    public Weapon currentWeapon;
+    public Weapon    currentWeapon;
     public Transform weaponHolder;
 
     [Header("Input")]
     public KeyCode reloadKey = KeyCode.R;
-    public bool semiAuto = false; // true for pistols, false for automatic
+    public bool    semiAuto  = false;
 
     private bool fireHeldLastFrame;
 
@@ -20,48 +20,44 @@ public class PlayerWeaponController : MonoBehaviour
 
     private void HandleFireInput()
     {
-        bool firePressed = Input.GetButtonDown("Fire1");
-        bool fireHeld = Input.GetButton("Fire1");
-
         if (currentWeapon == null) return;
+
+        bool pressed = Input.GetButtonDown("Fire1");
+        bool held    = Input.GetButton("Fire1");
 
         if (semiAuto)
         {
-            if (firePressed)
-            {
-                currentWeapon.TryFire(gameObject);
-            }
+            if (pressed) currentWeapon.TryFire(gameObject);
         }
         else
         {
-            if (fireHeld)
-            {
-                if (!fireHeldLastFrame)
-                {
-                    currentWeapon.TryFire(gameObject);
-                }
-                else
-                {
-                    currentWeapon.TryFire(gameObject);
-                }
-            }
+            if (held) currentWeapon.TryFire(gameObject);
         }
 
-        fireHeldLastFrame = fireHeld;
+        fireHeldLastFrame = held;
     }
 
     private void HandleReloadInput()
     {
         if (currentWeapon == null) return;
-
         if (Input.GetKeyDown(reloadKey))
-        {
             currentWeapon.TryReload();
-        }
     }
 
+    /// <summary>Equip a weapon component directly.</summary>
     public void EquipWeapon(Weapon newWeapon)
     {
         currentWeapon = newWeapon;
+    }
+
+    /// <summary>Instantiate a weapon prefab into weaponHolder and equip it.</summary>
+    public void EquipWeaponFromPrefab(GameObject prefab)
+    {
+        if (prefab == null || weaponHolder == null) return;
+        foreach (Transform c in weaponHolder) Destroy(c.gameObject);
+        var go = Instantiate(prefab, weaponHolder);
+        go.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+        var w = go.GetComponent<Weapon>();
+        if (w != null) currentWeapon = w;
     }
 }

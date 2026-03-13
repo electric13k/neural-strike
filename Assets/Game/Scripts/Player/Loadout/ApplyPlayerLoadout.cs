@@ -1,46 +1,43 @@
 using UnityEngine;
 
 /// <summary>
-/// Reads PlayerLoadout singleton at spawn and applies skills + weapon to this player.
-/// Attach to the Player prefab alongside PlayerController + TeleportAbility.
+/// Runs at player spawn. Reads PlayerLoadout singleton and applies
+/// skill levels to PlayerController, TeleportAbility and weapon.
 /// </summary>
 [RequireComponent(typeof(PlayerController))]
 public class ApplyPlayerLoadout : MonoBehaviour
 {
     public TeleportAbility        teleportAbility;
     public PlayerWeaponController weaponController;
-    public Transform              weaponHolder;
 
     private void Start()
     {
-        if (PlayerLoadout.Instance == null) return;
-        var ld = PlayerLoadout.Instance;
+        var loadout = PlayerLoadout.Instance;
+        if (loadout == null) return;
 
-        // ── skills ────────────────────────────────────────────────────
+        // Jump level
         GetComponent<PlayerController>().jumpSkillLevel =
-            Mathf.Clamp(ld.jumpSkillPoints, 0, 2);
+            Mathf.Clamp(loadout.jumpSkillPoints, 0, 2);
 
+        // Teleport level
         if (teleportAbility != null)
-            teleportAbility.teleportSkillLevel = ld.teleportSkillPoints;
+            teleportAbility.teleportSkillLevel = loadout.teleportSkillPoints;
 
-        // ── weapon ───────────────────────────────────────────────────
-        if (weaponController != null && weaponHolder != null)
+        // Weapon
+        if (weaponController != null && loadout.primaryWeaponPrefab != null)
         {
-            if (ld.primaryWeaponPrefab != null)
+            Transform holder = weaponController.weaponHolder;
+            if (holder != null)
             {
-                foreach (Transform child in weaponHolder)
+                foreach (Transform child in holder)
                     Destroy(child.gameObject);
 
-                var weaponGO = Instantiate(ld.primaryWeaponPrefab, weaponHolder);
-                weaponGO.transform.localPosition = Vector3.zero;
-                weaponGO.transform.localRotation = Quaternion.identity;
-
-                var weapon = weaponGO.GetComponent<Weapon>();
-                if (weapon != null)
-                    weaponController.EquipWeapon(weapon);
+                var go = Instantiate(loadout.primaryWeaponPrefab, holder);
+                go.transform.localPosition = Vector3.zero;
+                go.transform.localRotation = Quaternion.identity;
+                var w = go.GetComponent<Weapon>();
+                if (w != null) weaponController.EquipWeapon(w);
             }
         }
-
-        // Note: grenade spawning is handled by GrenadeController (reads loadout directly).
     }
 }
