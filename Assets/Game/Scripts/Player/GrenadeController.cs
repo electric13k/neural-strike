@@ -15,14 +15,17 @@ public class GrenadeController : MonoBehaviour
         public GameObject  prefab;
     }
 
+    // G U V E — one per grenade slot
+    public static readonly KeyCode[] GrenadeHotkeys =
+        { KeyCode.G, KeyCode.U, KeyCode.V, KeyCode.E };
+
     [Header("Prefab Map (one entry per grenade type)")]
     public List<GrenadePrefabEntry> grenadePrefabs = new List<GrenadePrefabEntry>();
 
     [Header("Throw Settings")]
-    public Transform throwOrigin;     // e.g. camera or weapon tip
+    public Transform throwOrigin;
     public float     throwForce = 12f;
 
-    // Runtime: built from loadout on Start
     private struct GrenadeState
     {
         public GrenadeType type;
@@ -33,21 +36,17 @@ public class GrenadeController : MonoBehaviour
 
     private GrenadeState[] _slots;
 
-    private void Start()
-    {
-        BuildSlotsFromLoadout();
-    }
+    private void Start()  => BuildSlotsFromLoadout();
 
     private void BuildSlotsFromLoadout()
     {
         if (PlayerLoadout.Instance == null) return;
 
-        var equipped = new List<GrenadeSlot>();
-        foreach (var slot in PlayerLoadout.Instance.grenadeSlots)
-            if (slot.points > 0)
-                equipped.Add(slot);
+        // GrenadeSelection is the correct class name in PlayerLoadout
+        var equipped = new List<GrenadeSelection>();
+        foreach (var g in PlayerLoadout.Instance.grenades)
+            if (g.points > 0) equipped.Add(g);
 
-        // max 4 equipped types mapped to G U V E
         int count = Mathf.Min(equipped.Count, 4);
         _slots = new GrenadeState[count];
 
@@ -56,8 +55,8 @@ public class GrenadeController : MonoBehaviour
             _slots[i] = new GrenadeState
             {
                 type      = equipped[i].type,
-                remaining = equipped[i].points,    // 1 point = 1 grenade
-                hotkey    = PlayerLoadout.GrenadeHotkeys[i],
+                remaining = equipped[i].points,
+                hotkey    = GrenadeHotkeys[i],
                 prefab    = FindPrefab(equipped[i].type)
             };
         }
@@ -67,43 +66,32 @@ public class GrenadeController : MonoBehaviour
     {
         if (_slots == null) return;
         for (int i = 0; i < _slots.Length; i++)
-        {
             if (Input.GetKeyDown(_slots[i].hotkey) && _slots[i].remaining > 0)
-            {
-                ThrowGrenade(i);
-                break;
-            }
-        }
+            { ThrowGrenade(i); break; }
     }
 
     private void ThrowGrenade(int index)
     {
         if (_slots[index].prefab == null)
-        {
-            Debug.LogWarning($"No prefab assigned for {_slots[index].type}");
-            return;
-        }
+        { Debug.LogWarning($"No prefab for {_slots[index].type}"); return; }
 
         Transform origin = throwOrigin != null ? throwOrigin : transform;
-        var go            = Instantiate(_slots[index].prefab,
-                                        origin.position, origin.rotation);
-
+        var go = Instantiate(_slots[index].prefab, origin.position, origin.rotation);
         if (go.TryGetComponent(out Rigidbody rb))
             rb.AddForce(origin.forward * throwForce, ForceMode.VelocityChange);
 
         _slots[index].remaining--;
     }
 
-    private GameObject FindPrefab(GrenadeType type)
+    private GameObject FindPrefab(GrenadeType t)
     {
         foreach (var e in grenadePrefabs)
-            if (e.type == type) return e.prefab;
+            if (e.type == t) return e.prefab;
         return null;
     }
 
-    // ── Public accessors for HUD ─────────────────────────────────────
-    public int GetSlotCount() => _slots?.Length ?? 0;
-    public int GetRemaining(int i) => (i >= 0 && i < _slots.Length) ? _slots[i].remaining : 0;
-    public GrenadeType GetType(int i) => (i >= 0 && i < _slots.Length) ? _slots[i].type : GrenadeType.Frag;
-    public KeyCode GetHotkey(int i)  => (i >= 0 && i < _slots.Length) ? _slots[i].hotkey : KeyCode.None;
+    public int  GetSlotCount()    => _slots?.Length ?? 0;
+    public int  GetRemaining(int i) => (i >= 0 && _slots != null && i < _slots.Length) ? _slots[i].remaining : 0;
+    public GrenadeType GetGrenadeType(int i) => (i >= 0 && _slots != null && i < _slots.Length) ? _slots[i].type : GrenadeType.Frag;
+    public KeyCode GetHotkey(int i) => (i >= 0 && _slots != null && i < _slots.Length) ? _slots[i].hotkey : KeyCode.None;
 }

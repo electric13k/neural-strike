@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Team Deathmatch game mode - plugs into MatchManager and wraps GameManager.
+/// Team Deathmatch game mode — plugs into MatchManager and wraps GameManager.
 /// </summary>
 public class TeamDeathmatchMode : GameMode
 {
@@ -11,7 +11,11 @@ public class TeamDeathmatchMode : GameMode
     public override void Initialize()
     {
         if (gameManager == null)
+#if UNITY_2023_1_OR_NEWER
+            gameManager = Object.FindFirstObjectByType<GameManager>();
+#else
             gameManager = FindObjectOfType<GameManager>();
+#endif
     }
 
     public override void OnMatchStart()

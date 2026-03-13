@@ -3,28 +3,27 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// Extends HUDManager to draw the ev.io-style overlay:
-/// [Q] teleport  |  [G][U][V][E] grenade slots  over the healthbar.
-/// Attach to the HUD Canvas alongside HUDManager.
+/// ev.io-style ability overlay: [Q] teleport | [G][U][V][E] grenades.
+/// Attach to HUD Canvas alongside HUDManager.
 /// </summary>
 public class AbilityBarHUD : MonoBehaviour
 {
     [System.Serializable]
     public class AbilitySlot
     {
-        public Image             icon;
-        public TextMeshProUGUI   countText;
-        public TextMeshProUGUI   hotkeyLabel;
-        public Image             cooldownOverlay;  // optional dark fill
+        public Image           icon;
+        public TextMeshProUGUI countText;
+        public TextMeshProUGUI hotkeyLabel;
+        public Image           cooldownOverlay;  // radial/filled Image
     }
 
     [Header("Teleport Slot (Q)")]
-    public AbilitySlot teleportSlot;
+    public AbilitySlot    teleportSlot;
     public TeleportAbility teleportAbility;
 
     [Header("Grenade Slots (G U V E)")]
-    public AbilitySlot[]      grenadeSlots = new AbilitySlot[4];
-    public GrenadeController  grenadeController;
+    public AbilitySlot[]     grenadeSlots = new AbilitySlot[4];
+    public GrenadeController grenadeController;
 
     [Header("Colors")]
     public Color readyColor    = Color.white;
@@ -43,36 +42,29 @@ public class AbilityBarHUD : MonoBehaviour
     {
         if (teleportSlot == null) return;
 
-        bool enabled  = teleportAbility != null && teleportAbility.teleportSkillLevel > 0;
-        float coolRem = teleportAbility != null ? teleportAbility.CooldownRemaining : 0f;
-        float coolMax = teleportAbility != null
-            ? (teleportAbility.baseCooldown + teleportAbility.cooldownPerLvl *
-               Mathf.Max(0, teleportAbility.teleportSkillLevel - 1))
-            : 1f;
-
+        bool hasAbility = teleportAbility != null && teleportAbility.teleportSkillLevel > 0;
         if (teleportSlot.hotkeyLabel) teleportSlot.hotkeyLabel.text = "Q";
 
-        if (!enabled)
+        if (!hasAbility)
         {
-            SetSlotColor(teleportSlot, emptyColor);
+            SetColor(teleportSlot, emptyColor);
             if (teleportSlot.countText) teleportSlot.countText.text = "";
             return;
         }
 
-        if (coolRem > 0f)
-        {
-            SetSlotColor(teleportSlot, cooldownColor);
-            if (teleportSlot.cooldownOverlay)
-                teleportSlot.cooldownOverlay.fillAmount = coolRem / Mathf.Max(0.01f, coolMax);
-            if (teleportSlot.countText)
-                teleportSlot.countText.text = Mathf.CeilToInt(coolRem).ToString();
-        }
-        else
-        {
-            SetSlotColor(teleportSlot, readyColor);
-            if (teleportSlot.cooldownOverlay) teleportSlot.cooldownOverlay.fillAmount = 0f;
-            if (teleportSlot.countText) teleportSlot.countText.text = "";
-        }
+        // CooldownNormalized: 0 = just used (on cooldown), 1 = ready
+        float readyFrac = teleportAbility.CooldownNormalized;
+        bool  onCooldown = readyFrac < 1f;
+
+        SetColor(teleportSlot, onCooldown ? cooldownColor : readyColor);
+
+        if (teleportSlot.cooldownOverlay)
+            teleportSlot.cooldownOverlay.fillAmount = onCooldown ? (1f - readyFrac) : 0f;
+
+        if (teleportSlot.countText)
+            teleportSlot.countText.text = onCooldown
+                ? Mathf.CeilToInt((1f - readyFrac) * teleportAbility.baseCooldown).ToString()
+                : "";
     }
 
     private void UpdateGrenades()
@@ -84,24 +76,17 @@ public class AbilityBarHUD : MonoBehaviour
 
             if (slot.hotkeyLabel) slot.hotkeyLabel.text = GrenadeKeys[i];
 
-            bool exists   = grenadeController != null && i < grenadeController.GetSlotCount();
-            int remaining = exists ? grenadeController.GetRemaining(i) : 0;
+            bool hasSlot  = grenadeController != null && i < grenadeController.GetSlotCount();
+            int  rem      = hasSlot ? grenadeController.GetRemaining(i) : 0;
 
-            if (!exists || remaining <= 0)
-            {
-                SetSlotColor(slot, emptyColor);
-                if (slot.countText) slot.countText.text = "0";
-            }
-            else
-            {
-                SetSlotColor(slot, readyColor);
-                if (slot.countText) slot.countText.text = remaining.ToString();
-            }
+            SetColor(slot, (!hasSlot || rem <= 0) ? emptyColor : readyColor);
+            if (slot.countText) slot.countText.text = rem.ToString();
+            if (slot.cooldownOverlay) slot.cooldownOverlay.fillAmount = 0f;
         }
     }
 
-    private void SetSlotColor(AbilitySlot slot, Color c)
+    private void SetColor(AbilitySlot slot, Color c)
     {
-        if (slot.icon)  slot.icon.color = c;
+        if (slot.icon) slot.icon.color = c;
     }
 }
