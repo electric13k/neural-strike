@@ -6,110 +6,109 @@ using System.Linq;
 using System.IO;
 
 /// <summary>
-/// Tools > Neural Strike > Build FFA Scene
-/// Sets up a complete local FFA test scene:
-///  - Loads Flooded Grounds environment (must be imported)
-///  - Disables any Egyptian Metro root object if found
-///  - Creates GameManager, SpawnManager, DeathmatchMode, MatchManager
-///  - Creates Player GameObject wired with all components
-///  - Creates HUD Canvas with ability bar above healthbar
-///  - Auto-assigns materials from Assets/Game/Textures by matching name
+/// Tools > Neural Strike > 2) Build FFA Scene
+/// Run "1) Setup Required Tags" first.
+/// Disables Egyptian Metro root, activates Flooded Grounds,
+/// wires all managers + player. Never throws on missing tags.
 /// </summary>
 public static class NeuralStrikeSceneBuilder
 {
-    // ── CONFIGURE THESE PATHS TO MATCH YOUR IMPORTED ASSETS ─────────
-    const string FLOODED_ROOT_NAME   = "FloodedGrounds"; // root GameObject name in the asset
-    const string EGYPTIAN_ROOT_NAME  = "EgyptianMetro";  // root to disable (not delete)
-    const string PLAYER_TAG          = "Player";
-    const string SPAWN_PLAYER_TAG    = "SpawnPlayer";
-    const string SPAWN_BOT_TAG       = "SpawnBot";
-    const string FFA_SCENE_NAME      = "FFA_Test";
-    const string TEXTURES_PATH       = "Assets/Game/Textures";
-    const string MODELS_PATH         = "Assets/Game/Models";
-    // ────────────────────────────────────────────────────────────────
+    const string FLOODED_ROOT_NAME  = "FloodedGrounds";
+    const string EGYPTIAN_ROOT_NAME = "EgyptianMetro";
+    const string PLAYER_TAG         = "Player";
+    const string SPAWN_PLAYER_TAG   = "SpawnPlayer";
+    const string SPAWN_BOT_TAG      = "SpawnBot";
+    const string TEXTURES_PATH      = "Assets/Game/Textures";
+    const string MODELS_PATH        = "Assets/Game/Models";
 
-    [MenuItem("Tools/Neural Strike/Build FFA Scene")]
+    [MenuItem("Tools/Neural Strike/2) Build FFA Scene")]
     public static void BuildFFAScene()
     {
-        // 1. DISABLE EGYPTIAN METRO (keep files, just deactivate root)
-        var egyptian = GameObject.Find(EGYPTIAN_ROOT_NAME);
-        if (egyptian != null)
-        {
-            egyptian.SetActive(false);
-            Debug.Log($"[NeuralStrike] Disabled '{EGYPTIAN_ROOT_NAME}' in hierarchy.");
-        }
+        // 1. Disable Egyptian Metro (keep files)
+        TrySetActive(EGYPTIAN_ROOT_NAME, false);
 
-        // 2. FIND OR ACTIVATE FLOODED GROUNDS
-        var flooded = GameObject.Find(FLOODED_ROOT_NAME);
-        if (flooded == null)
-        {
-            // Try to find it if inactive
-            foreach (var go in Resources.FindObjectsOfTypeAll<GameObject>())
-            {
-                if (go.name == FLOODED_ROOT_NAME && !go.activeInHierarchy)
-                {
-                    flooded = go;
-                    flooded.SetActive(true);
-                    break;
-                }
-            }
-        }
-        if (flooded == null)
-            Debug.LogWarning("[NeuralStrike] FloodedGrounds root not found. " +
-                             "Import the asset and make sure the root is named '" + FLOODED_ROOT_NAME + "'.");
+        // 2. Activate Flooded Grounds
+        bool foundMap = TrySetActive(FLOODED_ROOT_NAME, true);
+        if (!foundMap)
+            Debug.LogWarning("[NeuralStrike] '" + FLOODED_ROOT_NAME +
+                "' not found. Rename your Flooded Grounds root GameObject to '" +
+                FLOODED_ROOT_NAME + "' and re-run.");
 
-        // 3. GAME MANAGER
-        var gmObj = GameObject.Find("GameManager") ?? new GameObject("GameManager");
-        var gm    = gmObj.GetComponent<GameManager>() ?? gmObj.AddComponent<GameManager>();
+        // 3. GameManager
+        var gm = GetOrCreate<GameManager>("GameManager");
         gm.matchDuration = 600f;
         gm.scoreToWin    = 30;
 
-        // 4. SPAWN MANAGER
-        var smObj = GameObject.Find("SpawnManager") ?? new GameObject("SpawnManager");
-        var sm    = smObj.GetComponent<SpawnManager>() ?? smObj.AddComponent<SpawnManager>();
-        sm.playerSpawnPoints = GameObject.FindGameObjectsWithTag(SPAWN_PLAYER_TAG)
-                                         .Select(g => g.transform).ToArray();
-        sm.botSpawnPoints    = GameObject.FindGameObjectsWithTag(SPAWN_BOT_TAG)
-                                         .Select(g => g.transform).ToArray();
+        // 4. SpawnManager - safe tag lookup, never throws
+        var sm = GetOrCreate<SpawnManager>("SpawnManager");
+        sm.playerSpawnPoints = SafeFindByTag(SPAWN_PLAYER_TAG);
+        sm.botSpawnPoints    = SafeFindByTag(SPAWN_BOT_TAG);
         sm.botsToSpawn       = Mathf.Max(4, sm.botSpawnPoints.Length);
         sm.spawnDelay        = 5f;
 
-        // 5. DEATHMATCH MODE
-        var dmObj = GameObject.Find("DeathmatchMode") ?? new GameObject("DeathmatchMode");
-        var dm    = dmObj.GetComponent<DeathmatchMode>() ?? dmObj.AddComponent<DeathmatchMode>();
+        // 5. DeathmatchMode (FFA)
+        var dm = GetOrCreate<DeathmatchMode>("DeathmatchMode");
         dm.gameManager  = gm;
         dm.spawnManager = sm;
 
-        // 6. MATCH MANAGER
-        var mmObj = GameObject.Find("MatchManager") ?? new GameObject("MatchManager");
-        var mm    = mmObj.GetComponent<MatchManager>() ?? mmObj.AddComponent<MatchManager>();
+        // 6. MatchManager
+        var mm = GetOrCreate<MatchManager>("MatchManager");
         mm.currentGameMode = dm;
         mm.spawnManager    = sm;
         mm.autoStartGame   = true;
         mm.gameStartDelay  = 3f;
 
-        // 7. PLAYER
-        var playerObj = GameObject.FindWithTag(PLAYER_TAG);
+        // 7. Player
+        BuildPlayer();
+
+        // 8. Auto-assign materials
+        AutoAssignMaterials();
+
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+
+        EditorUtility.DisplayDialog(
+            "FFA Scene Built",
+            "Done!\n\n" +
+            "  - Egyptian Metro: disabled (files kept)\n" +
+            "  - GameManager / SpawnManager / DeathmatchMode / MatchManager created\n" +
+            "  - Player wired (CharacterController + Camera + Health + Weapons)\n" +
+            "  - Materials auto-linked by name\n\n" +
+            "NEXT STEPS:\n" +
+            "  1) Rename Flooded Grounds root to 'FloodedGrounds' if not visible\n" +
+            "  2) Tag your spawn points SpawnPlayer / SpawnBot in Inspector\n" +
+            "  3) Assign bot prefabs on SpawnManager\n" +
+            "  4) Window > Rendering > Lighting > Generate Lighting\n" +
+            "  5) Hit Play!",
+            "OK");
+    }
+
+    private static void BuildPlayer()
+    {
+        GameObject playerObj = null;
+        try   { playerObj = GameObject.FindWithTag(PLAYER_TAG); }
+        catch { }
+
         if (playerObj == null)
         {
             playerObj = new GameObject("Player");
-            playerObj.tag = PLAYER_TAG;
+            try { playerObj.tag = PLAYER_TAG; } catch { }
         }
-        var cc  = playerObj.GetComponent<CharacterController>() ?? playerObj.AddComponent<CharacterController>();
+
+        var cc = playerObj.GetComponent<CharacterController>() ?? playerObj.AddComponent<CharacterController>();
         cc.height = 1.8f;
         cc.radius = 0.3f;
         cc.center = new Vector3(0, 0.9f, 0);
 
-        var pc  = playerObj.GetComponent<PlayerController>()  ?? playerObj.AddComponent<PlayerController>();
+        var pc = playerObj.GetComponent<PlayerController>() ?? playerObj.AddComponent<PlayerController>();
         pc.gravity        = -9.81f;
         pc.jumpHeight     = 1.5f;
         pc.jumpSkillLevel = 0;
 
-        playerObj.GetComponent<TeleportAbility>()  ?? playerObj.AddComponent<TeleportAbility>();
-        playerObj.GetComponent<ApplyPlayerLoadout>()  ?? playerObj.AddComponent<ApplyPlayerLoadout>();
+        playerObj.GetComponent<TeleportAbility>()    ?? playerObj.AddComponent<TeleportAbility>();
+        playerObj.GetComponent<ApplyPlayerLoadout>() ?? playerObj.AddComponent<ApplyPlayerLoadout>();
+        playerObj.GetComponent<Health>()             ?? playerObj.AddComponent<Health>();
 
-        // Ground check child
-        Transform gc = playerObj.transform.Find("GroundCheck");
+        var gc = playerObj.transform.Find("GroundCheck");
         if (gc == null)
         {
             gc = new GameObject("GroundCheck").transform;
@@ -118,8 +117,7 @@ public static class NeuralStrikeSceneBuilder
         }
         pc.groundCheck = gc;
 
-        // Weapon holder
-        Transform wh = playerObj.transform.Find("WeaponHolder");
+        var wh = playerObj.transform.Find("WeaponHolder");
         if (wh == null)
         {
             wh = new GameObject("WeaponHolder").transform;
@@ -129,8 +127,7 @@ public static class NeuralStrikeSceneBuilder
         var pwc = playerObj.GetComponent<PlayerWeaponController>() ?? playerObj.AddComponent<PlayerWeaponController>();
         pwc.weaponHolder = wh;
 
-        // Camera
-        Transform cam = playerObj.transform.Find("MainCamera");
+        var cam = playerObj.transform.Find("MainCamera");
         if (cam == null)
         {
             cam = new GameObject("MainCamera").transform;
@@ -138,36 +135,12 @@ public static class NeuralStrikeSceneBuilder
             cam.localPosition = new Vector3(0, 1.6f, 0);
             cam.gameObject.AddComponent<Camera>();
             cam.gameObject.AddComponent<AudioListener>();
-            cam.gameObject.tag = "MainCamera";
+            try { cam.gameObject.tag = "MainCamera"; } catch { }
         }
-        var ml = cam.GetComponent<MouseLook>() ?? cam.gameObject.AddComponent<MouseLook>();
-
-        // Health
-        playerObj.GetComponent<Health>() ?? playerObj.AddComponent<Health>();
-
-        // 8. AUTO-ASSIGN MATERIALS FROM TEXTURES FOLDER
-        AutoAssignMaterials();
-
-        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-
-        EditorUtility.DisplayDialog(
-            "FFA Scene Built ✅",
-            "Done! Summary:\n" +
-            "  • Egyptian Metro: disabled (not deleted)\n" +
-            "  • GameManager, SpawnManager, DeathmatchMode, MatchManager created\n" +
-            "  • Player wired (CharacterController, camera, weapons, health)\n" +
-            "  • Materials auto-assigned by texture name matching\n\n" +
-            "NEXT STEPS:\n" +
-            "  1) Rename Flooded Grounds root to 'FloodedGrounds' if not already\n" +
-            "  2) Tag spawn points SpawnPlayer / SpawnBot\n" +
-            "  3) Assign bot prefabs on SpawnManager\n" +
-            "  4) Add HUD Canvas and wire HUDManager references\n" +
-            "  5) Hit Play!",
-            "OK");
+        cam.GetComponent<MouseLook>() ?? cam.gameObject.AddComponent<MouseLook>();
     }
 
-    // ── MATERIAL AUTO-LINKER ─────────────────────────────────────────
-    [MenuItem("Tools/Neural Strike/Auto-Assign Materials")]
+    [MenuItem("Tools/Neural Strike/3) Auto-Assign Materials")]
     public static void AutoAssignMaterials()
     {
         string[] matGuids = AssetDatabase.FindAssets("t:Material", new[] { MODELS_PATH });
@@ -176,28 +149,63 @@ public static class NeuralStrikeSceneBuilder
         foreach (var guid in matGuids)
         {
             string matPath = AssetDatabase.GUIDToAssetPath(guid);
-            var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+            var    mat     = AssetDatabase.LoadAssetAtPath<Material>(matPath);
             if (mat == null) continue;
 
-            string baseName = Path.GetFileNameWithoutExtension(matPath);
-
-            // Search for a texture with same base name in textures folder
-            string[] texGuids = AssetDatabase.FindAssets($"{baseName} t:Texture2D", new[] { TEXTURES_PATH });
+            string   baseName = Path.GetFileNameWithoutExtension(matPath);
+            string[] texGuids = AssetDatabase.FindAssets(baseName + " t:Texture2D", new[] { TEXTURES_PATH });
             if (texGuids.Length == 0) continue;
 
-            string texPath = AssetDatabase.GUIDToAssetPath(texGuids[0]);
-            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
+            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(texGuids[0]));
             if (tex == null) continue;
 
-            mat.SetTexture("_BaseMap", tex);   // URP
-            mat.SetTexture("_MainTex", tex);   // Built-in fallback
+            mat.SetTexture("_BaseMap", tex);
+            mat.SetTexture("_MainTex", tex);
             EditorUtility.SetDirty(mat);
             matched++;
-            Debug.Log($"[MaterialLinker] {baseName} → {texPath}");
         }
 
         AssetDatabase.SaveAssets();
-        Debug.Log($"[MaterialLinker] Auto-assigned {matched} material(s).");
+        Debug.Log("[MaterialLinker] Auto-assigned " + matched + " material(s).");
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────
+
+    static T GetOrCreate<T>(string goName) where T : Component
+    {
+        var go = GameObject.Find(goName) ?? new GameObject(goName);
+        return go.GetComponent<T>() ?? go.AddComponent<T>();
+    }
+
+    static Transform[] SafeFindByTag(string tag)
+    {
+        try
+        {
+            return GameObject.FindGameObjectsWithTag(tag)
+                             .Select(g => g.transform).ToArray();
+        }
+        catch
+        {
+            Debug.LogWarning("[NeuralStrike] Tag '" + tag +
+                "' missing. Run Tools > Neural Strike > 1) Setup Required Tags first.");
+            return new Transform[0];
+        }
+    }
+
+    static bool TrySetActive(string name, bool active)
+    {
+        var go = GameObject.Find(name);
+        if (go == null)
+        {
+            // Search inactive objects too
+            foreach (var obj in Resources.FindObjectsOfTypeAll<GameObject>())
+            {
+                if (obj.name == name && obj.scene.IsValid())
+                { go = obj; break; }
+            }
+        }
+        if (go != null) { go.SetActive(active); return true; }
+        return false;
     }
 }
 #endif
