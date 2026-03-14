@@ -1,0 +1,16 @@
+# Blender 4.5.0 MTL File: 'None'
+# www.blender.org
+
+newmtl tripo_mat_1e944706-3bbf-4355-966b-17ed3885d7d9
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd courierbot_basecolor.jpeg
+map_Ns courierbot_roughness.jpeg
+map_Pr courierbot_roughness.jpeg
+map_refl courierbot_metallic.jpeg
+map_Pm courierbot_metallic.jpeg
+map_Bump -bm 1.000000 courierbot_normal.jpeg

@@ -1,0 +1,16 @@
+# Blender 4.5.0 MTL File: 'None'
+# www.blender.org
+
+newmtl tripo_mat_c8ee4136-e952-4ca9-a940-c2ce69dd8a62
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd assaultbot_basecolor.jpeg
+map_Ns assaultbot_roughness.jpeg
+map_Pr assaultbot_roughness.jpeg
+map_refl assaultbot_metallic.jpeg
+map_Pm assaultbot_metallic.jpeg
+map_Bump -bm 1.000000 assaultbot_normal.jpeg

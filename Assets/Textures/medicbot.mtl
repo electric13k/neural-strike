@@ -1,0 +1,16 @@
+# Blender 4.5.0 MTL File: 'None'
+# www.blender.org
+
+newmtl tripo_mat_47ec81b6-084f-4f4f-b667-25c1302ef773
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd medicbot_basecolor.jpeg
+map_Ns medicbot_roughness.jpeg
+map_Pr medicbot_roughness.jpeg
+map_refl medicbot_metallic.jpeg
+map_Pm medicbot_metallic.jpeg
+map_Bump -bm 1.000000 medicbot_normal.jpeg
