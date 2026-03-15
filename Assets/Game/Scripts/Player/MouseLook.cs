@@ -1,34 +1,63 @@
 using UnityEngine;
 
+// ============================================================
+//  MOUSE LOOK  — Neural Strike
+//
+//  HOW TO WIRE IN UNITY
+//  1. Attach to the Camera child of Player.
+//  2. Assign playerBody = the Player root transform.
+//  3. Camera sits at eye-height (0, 0.7, 0) relative to Player.
+// ============================================================
+
 public class MouseLook : MonoBehaviour
 {
     [Header("References")]
-    public Transform playerBody;
+    public Transform playerBody;          // Player root — yaw applied here
 
     [Header("Settings")]
-    public float mouseSensitivity = 120f;
-    public bool lockCursor = true;
+    public float sensitivity = 120f;
+    public float minPitch    = -85f;
+    public float maxPitch    =  85f;
+    public bool  lockCursor  = true;
 
-    private float xRotation = 0f;
+    private float _pitch;                 // vertical angle
 
-    private void Start()
+    void Start()
     {
         if (lockCursor)
         {
             Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            Cursor.visible   = false;
         }
     }
 
-    private void Update()
+    void Update()
     {
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
+        if (lockCursor && Input.GetKeyDown(KeyCode.Escape))
+        {
+            // toggle cursor for menus
+            lockCursor = false;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible   = true;
+            return;
+        }
 
-        xRotation -= mouseY;
-        xRotation = Mathf.Clamp(xRotation, -85f, 85f);
+        float mX = Input.GetAxisRaw("Mouse X") * sensitivity * Time.deltaTime;
+        float mY = Input.GetAxisRaw("Mouse Y") * sensitivity * Time.deltaTime;
 
-        transform.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
-        playerBody.Rotate(Vector3.up * mouseX);
+        _pitch -= mY;
+        _pitch  = Mathf.Clamp(_pitch, minPitch, maxPitch);
+
+        transform.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
+        if (playerBody != null)
+            playerBody.Rotate(Vector3.up * mX);
+    }
+
+    /// <summary>Re-lock cursor when entering gameplay from a menu.</summary>
+    public void RelockCursor()
+    {
+        lockCursor       = true;
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible   = false;
     }
 }

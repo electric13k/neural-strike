@@ -1,39 +1,28 @@
 using UnityEngine;
 
-/// <summary>
-/// Interface for entities that can receive damage.
-/// </summary>
-public interface IDamageable
-{
-    void ApplyDamage(float amount, DamageInfo info);
-    bool IsDead { get; }
-}
+// ============================================================
+//  DAMAGEABLE  — Neural Strike
+//  Thin adapter: any collider can have this component and it
+//  will forward damage to the HealthSystem on the root.
+//  Useful for headshot multipliers (place on head bone collider).
+// ============================================================
 
-/// <summary>
-/// Helper component that forwards damage to a Health component.
-/// Attach to colliders that should receive damage (e.g. hitboxes).
-/// </summary>
-public class Damageable : MonoBehaviour, IDamageable
+public class Damageable : MonoBehaviour
 {
-    [SerializeField] private Health healthComponent;
-    [SerializeField] private float damageMultiplier = 1f;
+    [Tooltip("Damage multiplier for this specific hit zone.")]
+    [Range(0.1f, 5f)] public float damageMultiplier = 1f;
 
-    public bool IsDead => healthComponent != null && healthComponent.IsDead;
+    private HealthSystem _hs;
 
     void Awake()
     {
-        if (healthComponent == null)
-            healthComponent = GetComponentInParent<Health>();
+        _hs = GetComponentInParent<HealthSystem>();
+        if (_hs == null)
+            Debug.LogWarning($"[Damageable] No HealthSystem found above {name}");
     }
 
-    public void ApplyDamage(float amount, DamageInfo info)
+    public void TakeDamage(float rawDamage, GameObject source = null)
     {
-        if (healthComponent != null)
-            healthComponent.ApplyDamage(amount * damageMultiplier, info);
-    }
-
-    public void SetMultiplier(float multiplier)
-    {
-        damageMultiplier = multiplier;
+        _hs?.TakeDamage(rawDamage * damageMultiplier, source);
     }
 }

@@ -1,66 +1,55 @@
 using UnityEngine;
 
-/// <summary>
-/// Q-key teleport ability. Skill level 0=off, 1/2/3 = increasing distance & shorter cooldown.
-/// Inspired by ev.io's teleport mechanic: player snaps forward along look direction,
-/// stopping just before geometry.
-/// </summary>
-[RequireComponent(typeof(CharacterController))]
+// ============================================================
+//  TELEPORT ABILITY  — Neural Strike
+//  Key Q  |  Skill 0 = disabled, 1-3 = increasing range & speed.
+//  Casts a ray forward, snaps player just before any obstacle.
+//  CooldownNormalized (0..1) drives the HUD cooldown ring.
+// ============================================================
+
+[RequireComponent(typeof(PlayerController))]
 public class TeleportAbility : MonoBehaviour
 {
-    [Range(0, 3)]
-    [Tooltip("0=disabled, 1-3=stronger teleport")]
-    public int teleportSkillLevel = 0;
-
-    public KeyCode teleportKey = KeyCode.Q;
+    [Header("Skill level  (0=off  1-3=active)")]
+    [Range(0,3)] public int skillLevel = 0;
 
     [Header("Tuning")]
-    public float baseDistance     = 6f;
-    public float distancePerLevel = 2f;   // extra metres per level above 1
-    public float baseCooldown     = 5f;
-    public float cooldownPerLevel = -1f;  // negative = faster at higher level
+    public KeyCode   key              = KeyCode.Q;
+    public float     baseDistance     = 6f;
+    public float     distancePerLevel = 2f;
+    public float     baseCooldown     = 5f;
+    public float     cooldownPerLevel = -1f;    // negative = faster at higher level
+    public LayerMask blockMask        = ~0;
 
-    public LayerMask collisionMask = ~0;
+    private PlayerController _pc;
+    private float            _lastUse = -999f;
 
-    // Cooldown visual hook – HUDAbilityBar reads this.
-    public float CooldownNormalized =>
-        Mathf.Clamp01((Time.time - lastTeleportTime) / Cooldown);
+    // Properties read by HUD
+    public float Cooldown          => Mathf.Max(0.5f, baseCooldown + cooldownPerLevel * Mathf.Max(0, skillLevel - 1));
+    public float CooldownNormalized => Mathf.Clamp01((Time.time - _lastUse) / Cooldown);
+    public bool  IsReady           => skillLevel > 0 && Time.time >= _lastUse + Cooldown;
 
-    private CharacterController controller;
-    private float lastTeleportTime = -999f;
+    void Awake() => _pc = GetComponent<PlayerController>();
 
-    private float MaxDistance =>
-        baseDistance + distancePerLevel * Mathf.Max(0, teleportSkillLevel - 1);
-
-    private float Cooldown =>
-        Mathf.Max(0.5f, baseCooldown + cooldownPerLevel * Mathf.Max(0, teleportSkillLevel - 1));
-
-    private void Awake()
+    void Update()
     {
-        controller = GetComponent<CharacterController>();
+        if (skillLevel <= 0) return;
+        if (Input.GetKeyDown(key) && IsReady)
+            DoTeleport();
     }
 
-    private void Update()
+    void DoTeleport()
     {
-        if (teleportSkillLevel <= 0) return;
-        if (Input.GetKeyDown(teleportKey) && Time.time >= lastTeleportTime + Cooldown)
-            TryTeleport();
-    }
-
-    private void TryTeleport()
-    {
-        Vector3 origin = transform.position + Vector3.up * (controller.height * 0.5f);
+        float maxDist = baseDistance + distancePerLevel * Mathf.Max(0, skillLevel - 1);
+        Vector3 origin = transform.position + Vector3.up * 1f;  // chest-height ray
         Vector3 dir    = transform.forward;
 
-        float dist = MaxDistance;
-        if (Physics.Raycast(origin, dir, out RaycastHit hit, MaxDistance, collisionMask,
-                QueryTriggerInteraction.Ignore))
-            dist = Mathf.Max(0.5f, hit.distance - 0.5f);
+        float travel = maxDist;
+        if (Physics.Raycast(origin, dir, out RaycastHit hit, maxDist, blockMask, QueryTriggerInteraction.Ignore))
+            travel = Mathf.Max(0.4f, hit.distance - 0.5f);
 
-        controller.enabled = false;
-        transform.position += dir * dist;
-        controller.enabled = true;
-
-        lastTeleportTime = Time.time;
+        Vector3 dest = transform.position + dir * travel;
+        _pc.Warp(dest);
+        _lastUse = Time.time;
     }
 }

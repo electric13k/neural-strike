@@ -1,100 +1,133 @@
 using UnityEngine;
 
-/// <summary>
-/// First-person player movement with earth gravity (-9.81) and skill-based multi-jump.
-/// jumpSkillLevel: 0 = 1 jump, 1 = double, 2 = triple.
-/// </summary>
+// ============================================================
+//  PLAYER CONTROLLER  — Neural Strike
+//  Covers: WASD movement, sprint, variable jump (skill-based
+//  multi-jump), air-control, ground-check sphere, full gravity.
+//
+//  HOW TO WIRE IN UNITY
+//  1. Create empty GameObject "Player" at (0,1,0).
+//  2. Add CharacterController  (center 0,1,0 | height 2 | radius 0.4).
+//  3. Add THIS script.
+//  4. Add child empty "GroundCheck" at (0, -0.05, 0) → assign groundCheck.
+//  5. Add child Camera → assign to MouseLook.playerBody is THIS transform,
+//     MouseLook lives on the Camera.
+//  6. Create layer "Ground", apply it to all floor/terrain objects.
+//     Set groundMask to that layer in Inspector.
+// ============================================================
+
 [RequireComponent(typeof(CharacterController))]
 public class PlayerController : MonoBehaviour
 {
+    // ── Movement ──────────────────────────────────────────────
     [Header("Movement")]
-    public float walkSpeed = 5f;
-    public float sprintSpeed = 8f;
-    public float jumpHeight = 1.5f;
+    public float walkSpeed        = 5f;
+    public float sprintSpeed      = 8f;
+    public float gravity          = -9.81f;
+    public float jumpHeight       = 1.5f;
+    public float airControlMult   = 0.45f;
 
-    // Earth gravity: -9.81 m/s^2
-    public float gravity = -9.81f;
-    public float airControlMultiplier = 0.5f;
+    // ── Skill-based multi-jump ─────────────────────────────────
+    [Header("Jump Skill  (0=single  1=double  2=triple)")]
+    [Range(0,2)] public int jumpSkillLevel = 0;
 
-    [Header("Jump Skills")]
-    [Tooltip("0=single, 1=double, 2=triple jump")]
-    [Range(0, 2)] public int jumpSkillLevel = 0;
-
+    // ── Ground detection ──────────────────────────────────────
     [Header("Ground Check")]
-    public Transform groundCheck;
-    public float groundCheckRadius = 0.3f;
-    public LayerMask groundMask;
+    public Transform  groundCheck;
+    public float      groundCheckRadius = 0.28f;
+    public LayerMask  groundMask;
 
-    private CharacterController controller;
-    private Vector3 velocity;
-    private bool isGrounded;
-    private float currentSpeed;
-    private int jumpsUsed;
+    // ── Internal state ────────────────────────────────────────
+    private CharacterController _cc;
+    private Vector3 _vel;          // accumulated velocity
+    private bool    _grounded;
+    private int     _jumpsUsed;
 
     private int MaxJumps => 1 + Mathf.Clamp(jumpSkillLevel, 0, 2);
 
-    private void Awake()
+    // ─────────────────────────────────────────────────────────
+    void Awake()
     {
-        controller = GetComponent<CharacterController>();
-        currentSpeed = walkSpeed;
+        _cc = GetComponent<CharacterController>();
     }
 
-    private void Update()
+    void Update()
     {
-        HandleGroundCheck();
-        HandleMovement();
-        HandleJump();
+        GroundCheck();
+        MoveHorizontal();
+        TryJump();
         ApplyGravity();
-        controller.Move(velocity * Time.deltaTime);
+        _cc.Move(_vel * Time.deltaTime);
     }
 
-    private void HandleGroundCheck()
-    {
-        isGrounded = groundCheck != null
-            ? Physics.CheckSphere(groundCheck.position, groundCheckRadius, groundMask, QueryTriggerInteraction.Ignore)
-            : controller.isGrounded;
+    // ── Private helpers ───────────────────────────────────────
 
-        if (isGrounded && velocity.y < 0f)
+    void GroundCheck()
+    {
+        if (groundCheck != null)
+            _grounded = Physics.CheckSphere(
+                groundCheck.position, groundCheckRadius,
+                groundMask, QueryTriggerInteraction.Ignore);
+        else
+            _grounded = _cc.isGrounded;
+
+        if (_grounded && _vel.y < 0f)
         {
-            velocity.y = -2f;
-            jumpsUsed = 0;
+            _vel.y    = -2f;   // keeps player pressed to slope
+            _jumpsUsed = 0;
         }
     }
 
-    private void HandleMovement()
+    void MoveHorizontal()
     {
         float h = Input.GetAxisRaw("Horizontal");
         float v = Input.GetAxisRaw("Vertical");
-        Vector3 inputDir = new Vector3(h, 0f, v).normalized;
+        Vector3 dir = new Vector3(h, 0f, v).normalized;
 
-        if (inputDir.magnitude >= 0.1f)
+        if (dir.sqrMagnitude > 0.01f)
         {
-            bool sprinting = Input.GetKey(KeyCode.LeftShift);
-            currentSpeed = sprinting ? sprintSpeed : walkSpeed;
-            float control = isGrounded ? 1f : airControlMultiplier;
-            Vector3 move = transform.TransformDirection(inputDir) * currentSpeed * control;
-            velocity.x = move.x;
-            velocity.z = move.z;
+            float spd     = Input.GetKey(KeyCode.LeftShift) ? sprintSpeed : walkSpeed;
+            float control = _grounded ? 1f : airControlMult;
+            Vector3 move  = transform.TransformDirection(dir) * spd * control;
+            _vel.x = move.x;
+            _vel.z = move.z;
         }
-        else if (isGrounded)
+        else if (_grounded)
         {
-            velocity.x = 0f;
-            velocity.z = 0f;
+            _vel.x = 0f;
+            _vel.z = 0f;
         }
     }
 
-    private void HandleJump()
+    void TryJump()
     {
         if (!Input.GetButtonDown("Jump")) return;
-        if (isGrounded || jumpsUsed < MaxJumps - 1)
-        {
-            velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
-            jumpsUsed++;
-        }
+
+        bool canJump = _grounded || (_jumpsUsed < MaxJumps - 1);
+        if (!canJump) return;
+
+        _vel.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+        _jumpsUsed++;
     }
 
-    private void ApplyGravity()
+    void ApplyGravity()
     {
-        velocity.y += gravity * Time.deltaTime;
+        _vel.y += gravity * Time.deltaTime;
+    }
+
+    // ── Public API (called by other systems) ──────────────────
+
+    /// <summary>Called by TeleportAbility — momentarily disables CC to warp.</summary>
+    public void Warp(Vector3 destination)
+    {
+        _cc.enabled = false;
+        transform.position = destination;
+        _cc.enabled = true;
+    }
+
+    /// <summary>Force-sets vertical velocity (e.g. grenade knockback).</summary>
+    public void ApplyImpulse(Vector3 impulse)
+    {
+        _vel += impulse;
     }
 }

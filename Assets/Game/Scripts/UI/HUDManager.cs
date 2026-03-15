@@ -1,68 +1,103 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
-/// <summary>
-/// Wires HUD elements to live game state every frame.
-/// Attach to the HUD Canvas.
-/// </summary>
+// ============================================================
+//  HUD MANAGER  — Neural Strike
+//
+//  HOW TO WIRE IN UNITY
+//  1. Create a Screen-Space Overlay Canvas in the Game scene.
+//  2. Under the Canvas add:
+//       - healthSlider    (Slider) for HP bar
+//       - armourSlider    (Slider) for Armour bar
+//       - ammoText        (Text)   e.g. "24 / 120"
+//       - grenadeText     (Text)   current grenade type & count
+//       - teleportFill    (Image, Image Type = Filled) cooldown ring
+//       - crosshair       (Image)  small dot or cross
+//       - timerText       (Text)   match countdown
+//  3. Create empty "HUDManager" object, attach this script.
+//  4. Drag the player prefab (or FindPlayer at runtime) into
+//     playerHealth, playerWeapon, grenadeCtrl, teleport.
+// ============================================================
+
 public class HUDManager : MonoBehaviour
 {
-    [Header("Health")]
-    public Image  healthFill;
-    public Health playerHealth;
+    [Header("Player References (auto-found if null)")]
+    public HealthSystem      playerHealth;
+    public WeaponBase        playerWeapon;   // active weapon
+    public GrenadeController grenadeCtrl;
+    public TeleportAbility   teleport;
 
-    [Header("Ammo")]
-    public TextMeshProUGUI       ammoText;
-    public PlayerWeaponController weaponController;
+    [Header("UI Elements")]
+    public Slider healthSlider;
+    public Slider armourSlider;
+    public Text   ammoText;
+    public Text   grenadeText;
+    public Image  teleportFill;     // Image.Type = Filled, FillMethod = Radial360
+    public Text   timerText;
 
-    [Header("Match Info")]
-    public TextMeshProUGUI timerText;
-    public TextMeshProUGUI scoreText;
-    public GameManager     gameManager;
+    // ── Lifecycle ─────────────────────────────────────────────
 
-    [Header("Ability Bar (above healthbar)")]
-    public HUDAbilityBar abilityBar;
-
-    private void Start()
+    void Start()
     {
-        if (abilityBar != null)
-            abilityBar.RefreshFromLoadout();
+        TryAutoFind();
+        if (healthSlider)  healthSlider.maxValue  = playerHealth  ? playerHealth.maxHealth  : 100f;
+        if (armourSlider)  armourSlider.maxValue   = playerHealth  ? playerHealth.maxArmour   :  50f;
     }
 
-    private void Update()
+    void Update()
     {
-        UpdateHealth();
-        UpdateAmmo();
-        UpdateMatchInfo();
+        RefreshHealth();
+        RefreshAmmo();
+        RefreshGrenade();
+        RefreshTeleport();
     }
 
-    private void UpdateHealth()
-    {
-        if (healthFill == null || playerHealth == null) return;
-        healthFill.fillAmount = playerHealth.HealthPercent;
-        healthFill.color = Color.Lerp(Color.red, Color.green, playerHealth.HealthPercent);
-    }
+    // ── Auto-find from tagged Player ──────────────────────────
 
-    private void UpdateAmmo()
+    void TryAutoFind()
     {
-        if (ammoText == null || weaponController == null) return;
-        Weapon w = weaponController.currentWeapon;
-        ammoText.text  = w != null ? $"{w.CurrentAmmo} / {w.ReserveAmmo}" : "-- / --";
-        ammoText.color = (w != null && w.CurrentAmmo == 0) ? Color.red : Color.white;
-    }
-
-    private void UpdateMatchInfo()
-    {
-        if (gameManager == null) return;
-
-        if (timerText != null)
+        if (playerHealth == null)
         {
-            float t = gameManager.TimeRemaining;
-            timerText.text = $"{Mathf.FloorToInt(t / 60):00}:{Mathf.FloorToInt(t % 60):00}";
+            GameObject p = GameObject.FindWithTag("Player");
+            if (p == null) return;
+            playerHealth = p.GetComponent<HealthSystem>();
+            playerWeapon  = p.GetComponentInChildren<WeaponBase>();
+            grenadeCtrl  = p.GetComponent<GrenadeController>();
+            teleport     = p.GetComponent<TeleportAbility>();
         }
+    }
 
-        if (scoreText != null)
-            scoreText.text = $"Score: {gameManager.GetScore("Player")}";
+    // ── Refresh methods ───────────────────────────────────────
+
+    void RefreshHealth()
+    {
+        if (playerHealth == null) return;
+        if (healthSlider) healthSlider.value = playerHealth.HP;
+        if (armourSlider) armourSlider.value  = playerHealth.Armour;
+    }
+
+    void RefreshAmmo()
+    {
+        if (ammoText == null || playerWeapon == null) return;
+        ammoText.text = playerWeapon.IsReloading
+            ? "RELOADING..."
+            : $"{playerWeapon.Ammo} / {playerWeapon.ReserveAmmo}";
+    }
+
+    void RefreshGrenade()
+    {
+        if (grenadeText == null || grenadeCtrl == null) return;
+        grenadeText.text = $"FRAG:{grenadeCtrl.fragCount}  STICKY:{grenadeCtrl.stickyCount}  VORTEX:{grenadeCtrl.vortexCount}";
+    }
+
+    void RefreshTeleport()
+    {
+        if (teleportFill == null || teleport == null) return;
+        teleportFill.fillAmount = teleport.CooldownNormalized;
+    }
+
+    public void SetTimerText(string txt)
+    {
+        if (timerText) timerText.text = txt;
     }
 }
