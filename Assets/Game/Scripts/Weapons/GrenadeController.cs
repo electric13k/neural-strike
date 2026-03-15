@@ -1,32 +1,38 @@
-using System.Collections;
 using UnityEngine;
 
 // ============================================================
-//  GRENADE CONTROLLER  — Neural Strike
-//  Manages grenade slots, throwing, and explosion.
-//  Grenades are physics Rigidbody prefabs; explosion uses
-//  Physics.OverlapSphere for AoE damage.
+//  GRENADE THROW CONTROLLER  — Neural Strike
+//  Rename note: class is now GrenadeThrowController to avoid
+//  collision with any old GrenadeController in the project.
+//  If you had GrenadeController referenced elsewhere, use
+//  Find & Replace: GrenadeController → GrenadeThrowController
 // ============================================================
 
-public class GrenadeController : MonoBehaviour
+public class GrenadeThrowController : MonoBehaviour
 {
-    [Header("Slots  (assign prefabs in Inspector)")]
+    [Header("Grenade Prefabs  (assign in Inspector)")]
     public GameObject fragGrenadePrefab;
     public GameObject stickyGrenadePrefab;
     public GameObject vortexGrenadePrefab;
 
-    [Header("Throw")]
-    public Transform  throwOrigin;       // camera or hand
-    public float      throwForce  = 15f;
-    public KeyCode    throwKey    = KeyCode.G;
-    public KeyCode    cycleKey    = KeyCode.T;
+    [Header("Throw Settings")]
+    public Transform throwOrigin;        // Camera or hand bone
+    public float     throwForce  = 15f;
+    public KeyCode   throwKey    = KeyCode.G;
+    public KeyCode   cycleKey    = KeyCode.T;
 
     [Header("Inventory")]
     public int fragCount   = 2;
     public int stickyCount = 1;
     public int vortexCount = 1;
 
-    private int _slot;   // 0=frag 1=sticky 2=vortex
+    // 0=frag  1=sticky  2=vortex
+    private int _slot;
+
+    // ── Read-only properties for HUD ─────────────────────────
+    public int  CurrentSlot  => _slot;
+    public int  CurrentCount => _slot == 0 ? fragCount : _slot == 1 ? stickyCount : vortexCount;
+    public string SlotName   => _slot == 0 ? "FRAG" : _slot == 1 ? "STICKY" : "VORTEX";
 
     void Update()
     {
@@ -37,38 +43,54 @@ public class GrenadeController : MonoBehaviour
             ThrowCurrent();
     }
 
-    void ThrowCurrent()
+    public void ThrowCurrent()
     {
-        GameObject prefab = null;
+        GameObject prefab;
         switch (_slot)
         {
             case 0:
-                if (fragCount   <= 0) return;
+                if (fragCount   <= 0) { Debug.Log("No frags left"); return; }
                 prefab = fragGrenadePrefab;
                 fragCount--;
                 break;
             case 1:
-                if (stickyCount <= 0) return;
+                if (stickyCount <= 0) { Debug.Log("No stickies left"); return; }
                 prefab = stickyGrenadePrefab;
                 stickyCount--;
                 break;
-            case 2:
-                if (vortexCount <= 0) return;
+            default:
+                if (vortexCount <= 0) { Debug.Log("No vortex grenades left"); return; }
                 prefab = vortexGrenadePrefab;
                 vortexCount--;
                 break;
         }
 
-        if (prefab == null) return;
+        if (prefab == null)
+        {
+            Debug.LogWarning($"[GrenadeThrowController] Slot {_slot} prefab not assigned!");
+            return;
+        }
 
-        Vector3    pos = throwOrigin ? throwOrigin.position : transform.position + Vector3.up * 1.5f;
-        Quaternion rot = throwOrigin ? throwOrigin.rotation : transform.rotation;
-        GameObject g   = Instantiate(prefab, pos, rot);
+        Vector3    origin = throwOrigin ? throwOrigin.position : transform.position + Vector3.up * 1.5f;
+        Quaternion rot    = throwOrigin ? throwOrigin.rotation : transform.rotation;
+        GameObject go     = Instantiate(prefab, origin, rot);
 
-        Rigidbody rb = g.GetComponent<Rigidbody>();
+        Rigidbody rb = go.GetComponent<Rigidbody>();
         if (rb != null)
-            rb.AddForce(throwOrigin ? throwOrigin.forward * throwForce
-                                     : transform.forward * throwForce,
-                        ForceMode.VelocityChange);
+        {
+            Vector3 dir = throwOrigin ? throwOrigin.forward : transform.forward;
+            rb.AddForce(dir * throwForce, ForceMode.VelocityChange);
+        }
+    }
+
+    // ── Called by loot pickups ────────────────────────────────
+    public void AddGrenade(int slot, int amount)
+    {
+        switch (slot)
+        {
+            case 0: fragCount   += amount; break;
+            case 1: stickyCount += amount; break;
+            case 2: vortexCount += amount; break;
+        }
     }
 }

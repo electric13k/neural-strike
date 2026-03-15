@@ -6,12 +6,6 @@ using UnityEngine.UI;
 //  2-team (Alpha / Bravo) or 4-team (Alpha / Bravo / Tango / Charlie)
 //  Match length: 10-25 minutes.
 //  Score formula: inherited from GameModeBase.
-//
-//  HOW TO WIRE IN UNITY
-//  1. Create empty "GameMode" in the TDM scene.
-//  2. Attach TeamDeathmatch script.
-//  3. Set matchDurationSec (600–1500).
-//  4. Assign scoreTexts in Inspector (one per team).
 // ============================================================
 
 public class TeamDeathmatch : GameModeBase
@@ -19,13 +13,13 @@ public class TeamDeathmatch : GameModeBase
     [Header("Teams")]
     public bool fourTeamMode = false;
 
-    [Header("Score UI (one Text per team)")]
+    [Header("Score UI  (one Text per team)")]
     public Text alphaScoreText;
     public Text bravoScoreText;
-    public Text tangoScoreText;   // only used in 4-team mode
+    public Text tangoScoreText;
     public Text charlieScoreText;
 
-    // ── Per-team kill/death trackers ──────────────────────────
+    // ── Per-team stats ────────────────────────────────────────
     private int _alphaKills,   _alphaBotKills,   _alphaDeaths,   _alphaBotDeaths;
     private int _bravoKills,   _bravoBotKills,   _bravoDeaths,   _bravoBotDeaths;
     private int _tangoKills,   _tangoBotKills,   _tangoDeaths,   _tangoBotDeaths;
@@ -34,11 +28,11 @@ public class TeamDeathmatch : GameModeBase
     protected override void Start()
     {
         modeName         = fourTeamMode ? "TDM-4" : "TDM-2";
-        matchDurationSec = 600f;   // default 10 min; Inspector can override
+        matchDurationSec = matchDurationSec > 0f ? matchDurationSec : 600f;
         base.Start();
     }
 
-    // ── Public API called by kill system ──────────────────────
+    // ── Public API (called by kill/death events) ──────────────
 
     public void RegisterKill(string killerTeam, bool isRobot)
     {
@@ -49,7 +43,7 @@ public class TeamDeathmatch : GameModeBase
             case "Tango":   if (isRobot) _tangoBotKills++;   else _tangoKills++;   break;
             case "Charlie": if (isRobot) _charlieBotKills++; else _charlieKills++; break;
         }
-        RefreshScoreUI();
+        RefreshUI();
     }
 
     public void RegisterDeath(string victimTeam, bool isRobot)
@@ -61,47 +55,47 @@ public class TeamDeathmatch : GameModeBase
             case "Tango":   if (isRobot) _tangoBotDeaths++;   else _tangoDeaths++;   break;
             case "Charlie": if (isRobot) _charlieBotDeaths++; else _charlieDeaths++; break;
         }
-        RefreshScoreUI();
+        RefreshUI();
     }
 
-    // ── Score display ─────────────────────────────────────────
+    // ── Score UI ──────────────────────────────────────────────
 
-    void RefreshScoreUI()
+    void RefreshUI()
     {
         if (alphaScoreText)
             alphaScoreText.text   = $"Alpha: {CalcScore(_alphaKills,   _alphaBotKills,   _alphaDeaths,   _alphaBotDeaths)}";
         if (bravoScoreText)
             bravoScoreText.text   = $"Bravo: {CalcScore(_bravoKills,   _bravoBotKills,   _bravoDeaths,   _bravoBotDeaths)}";
-        if (fourTeamMode)
-        {
-            if (tangoScoreText)
-                tangoScoreText.text   = $"Tango: {CalcScore(_tangoKills,   _tangoBotKills,   _tangoDeaths,   _tangoBotDeaths)}";
-            if (charlieScoreText)
-                charlieScoreText.text = $"Charlie: {CalcScore(_charlieKills, _charlieBotKills, _charlieDeaths, _charlieBotDeaths)}";
-        }
+
+        if (!fourTeamMode) return;
+
+        if (tangoScoreText)
+            tangoScoreText.text   = $"Tango: {CalcScore(_tangoKills,   _tangoBotKills,   _tangoDeaths,   _tangoBotDeaths)}";
+        if (charlieScoreText)
+            charlieScoreText.text = $"Charlie: {CalcScore(_charlieKills, _charlieBotKills, _charlieDeaths, _charlieBotDeaths)}";
     }
 
-    protected override void EndMatch()
+    // fix CS0507: must be public override (same access as base)
+    public override void EndMatch()
     {
         base.EndMatch();
-        string winner = DetermineWinner();
-        Debug.Log($"[TDM] WINNER: {winner}");
-        // TODO: show end-screen panel with winner
+        Debug.Log($"[TDM] WINNER: {DetermineWinner()}");
     }
 
     string DetermineWinner()
     {
-        int aScore = CalcScore(_alphaKills, _alphaBotKills, _alphaDeaths, _alphaBotDeaths);
-        int bScore = CalcScore(_bravoKills, _bravoBotKills, _bravoDeaths, _bravoBotDeaths);
-        if (!fourTeamMode)
-            return aScore == bScore ? "Draw" : (aScore > bScore ? "Alpha" : "Bravo");
+        int a = CalcScore(_alphaKills, _alphaBotKills, _alphaDeaths, _alphaBotDeaths);
+        int b = CalcScore(_bravoKills, _bravoBotKills, _bravoDeaths, _bravoBotDeaths);
 
-        int tScore = CalcScore(_tangoKills, _tangoBotKills, _tangoDeaths, _tangoBotDeaths);
-        int cScore = CalcScore(_charlieKills, _charlieBotKills, _charlieDeaths, _charlieBotDeaths);
-        int best   = Mathf.Max(aScore, bScore, tScore, cScore);
-        if (aScore == best) return "Alpha";
-        if (bScore == best) return "Bravo";
-        if (tScore == best) return "Tango";
+        if (!fourTeamMode)
+            return a == b ? "Draw" : (a > b ? "Alpha" : "Bravo");
+
+        int t = CalcScore(_tangoKills,   _tangoBotKills,   _tangoDeaths,   _tangoBotDeaths);
+        int c = CalcScore(_charlieKills, _charlieBotKills, _charlieDeaths, _charlieBotDeaths);
+        int best = Mathf.Max(a, b, t, c);
+        if (a == best) return "Alpha";
+        if (b == best) return "Bravo";
+        if (t == best) return "Tango";
         return "Charlie";
     }
 }
