@@ -10,21 +10,16 @@ using System.Collections.Generic;
 /// Tools > Neural Strike > 3) Link Materials + Textures
 /// Tools > Neural Strike > 4) Wire FBX Animators
 ///
-/// Tool 3: For every .obj in Assets/Models:
-///   - Forces Unity to re-import it (generates .meta)
-///   - Finds matching .mtl in Assets/Textures
-///   - Creates/updates a Material in Assets/Materials/<botname>/
-///   - Assigns basecolor -> _BaseMap/_MainTex
-///              normal   -> _BumpMap
-///              metallic -> _MetallicGlossMap
-///              roughness-> _SpecGlossMap
-///   - Assigns that material to the OBJ's MeshRenderer
-///
-/// Tool 4: For every .fbx in Assets/Animations:
-///   - Forces re-import
-///   - Groups by bot prefix
-///   - Creates AnimatorController at Assets/Animations/<bot>_Controller.controller
-///   - Adds one state per AnimationClip found in the FBX
+/// Fixes applied vs previous version:
+///   - ForceImportFolder: was building path as "Assets" + absolutePath
+///     which produced "AssetsD:/..." on Windows.  Now uses
+///     Application.dataPath (the Assets folder absolute path) to build
+///     the full disk path, and converts back to a proper "Assets/..."
+///     relative path for the AssetDatabase calls.
+///   - WireAnimators: dots in clip names (e.g. "mixamo.com") cause
+///     Unity's AnimatorStateMachine.AddState to throw a warning and
+///     skip the state.  Names are now sanitised (dots replaced with _)
+///     before being used as state names.
 /// </summary>
 public static class NeuralStrikeMaterialLinker
 {
@@ -37,76 +32,71 @@ public static class NeuralStrikeMaterialLinker
     [MenuItem("Tools/Neural Strike/3) Link Materials + Textures")]
     public static void LinkMaterials()
     {
-        // Ensure output folder exists
         if (!AssetDatabase.IsValidFolder(MATERIALS_PATH))
             AssetDatabase.CreateFolder("Assets", "Materials");
 
-        // Step 1: Force-import everything in Models and Textures so .meta exist
         ForceImportFolder(MODELS_PATH);
         ForceImportFolder(TEXTURES_PATH);
         AssetDatabase.Refresh();
 
-        // Step 2: Build texture lookup: "botname_suffix" -> Texture2D
         var texMap = BuildTexMap();
         Debug.Log("[MatLinker] Found " + texMap.Count + " textures in " + TEXTURES_PATH);
 
-        // Step 3: Process each .obj
-        string[] objGuids = AssetDatabase.FindAssets("t:Mesh", new[] { MODELS_PATH });
-        // Also scan by file extension since Unity may not yet see them as Mesh
-        var objPaths = Directory.GetFiles(
-            Path.Combine(Application.dataPath, "Models"), "*.obj", SearchOption.AllDirectories)
-            .Select(p => "Assets/Models/" + Path.GetFileName(p))
-            .ToList();
-
-        // Add any Unity already knows about
-        foreach (var g in objGuids)
-            objPaths.Add(AssetDatabase.GUIDToAssetPath(g));
-        objPaths = objPaths.Distinct().ToList();
+        // Collect .obj paths by scanning disk (avoids Unity not yet knowing about them)
+        string modelsDiskPath = AssetToDiskPath(MODELS_PATH);
+        var objPaths = new List<string>();
+        if (Directory.Exists(modelsDiskPath))
+        {
+            foreach (var f in Directory.GetFiles(modelsDiskPath, "*.obj", SearchOption.AllDirectories))
+                objPaths.Add(DiskToAssetPath(f));
+        }
+        // Also add anything Unity already sees as a Mesh
+        foreach (var g in AssetDatabase.FindAssets("t:Mesh", new[] { MODELS_PATH }))
+        {
+            string p = AssetDatabase.GUIDToAssetPath(g);
+            if (!objPaths.Contains(p)) objPaths.Add(p);
+        }
+        objPaths = objPaths.Distinct()
+                           .Where(p => p.EndsWith(".obj", System.StringComparison.OrdinalIgnoreCase))
+                           .ToList();
 
         int linked = 0;
         foreach (var objPath in objPaths)
         {
-            if (!objPath.EndsWith(".obj", System.StringComparison.OrdinalIgnoreCase)) continue;
-
-            // Force import this specific file
             AssetDatabase.ImportAsset(objPath, ImportAssetOptions.ForceUpdate);
 
-            string botName = Path.GetFileNameWithoutExtension(objPath).ToLower(); // e.g. "courierbot"
-
-            // Create material folder per bot
+            string botName  = Path.GetFileNameWithoutExtension(objPath).ToLower();
             string matFolder = MATERIALS_PATH + "/" + botName;
             if (!AssetDatabase.IsValidFolder(matFolder))
                 AssetDatabase.CreateFolder(MATERIALS_PATH, botName);
 
-            string matPath = matFolder + "/" + botName + ".mat";
-            Material mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+            string   matPath = matFolder + "/" + botName + ".mat";
+            Material mat     = AssetDatabase.LoadAssetAtPath<Material>(matPath);
             if (mat == null)
             {
                 mat = new Material(Shader.Find("Universal Render Pipeline/Lit")
-                    ?? Shader.Find("Standard"));
+                               ?? Shader.Find("Standard"));
                 AssetDatabase.CreateAsset(mat, matPath);
             }
 
             bool anyTex = false;
-            anyTex |= TryAssignTex(mat, texMap, botName + "_basecolor", "_BaseMap", "_MainTex");
-            TryAssignTex(mat, texMap, botName + "_normal",    "_BumpMap",         null);
-            TryAssignTex(mat, texMap, botName + "_metallic",  "_MetallicGlossMap",null);
-            TryAssignTex(mat, texMap, botName + "_roughness", "_SpecGlossMap",     null);
+            anyTex |= TryAssignTex(mat, texMap, botName + "_basecolor", "_BaseMap",         "_MainTex");
+            TryAssignTex(mat, texMap, botName + "_normal",    "_BumpMap",          null);
+            TryAssignTex(mat, texMap, botName + "_metallic",  "_MetallicGlossMap",  null);
+            TryAssignTex(mat, texMap, botName + "_roughness", "_SpecGlossMap",      null);
 
             EditorUtility.SetDirty(mat);
 
-            // Assign to OBJ renderer if it has one
             var go = AssetDatabase.LoadAssetAtPath<GameObject>(objPath);
             if (go != null)
             {
-                var renderers = go.GetComponentsInChildren<Renderer>();
-                foreach (var r in renderers)
+                foreach (var r in go.GetComponentsInChildren<Renderer>())
                 {
                     var mats = r.sharedMaterials;
                     for (int i = 0; i < mats.Length; i++) mats[i] = mat;
                     r.sharedMaterials = mats;
+                    EditorUtility.SetDirty(go);
                 }
-                EditorUtility.SetDirty(go);
             }
 
             if (anyTex) linked++;
@@ -117,9 +107,10 @@ public static class NeuralStrikeMaterialLinker
         AssetDatabase.Refresh();
 
         EditorUtility.DisplayDialog("Materials Linked",
-            "OBJs processed: " + objPaths.Count(p => p.EndsWith(".obj",System.StringComparison.OrdinalIgnoreCase)) + "\n" +
-            "Materials with textures: " + linked + "\n\n" +
-            "If count is 0, run 'git pull' and re-import in Unity first, then retry.",
+            "OBJs processed: "  + objPaths.Count + "\n" +
+            "With textures: "   + linked + "\n\n" +
+            (linked == 0 ? "No textures matched.  Make sure your texture files are in Assets/Textures/\n" +
+                           "and are named  botname_basecolor.jpeg  etc." : "Done!"),
             "OK");
     }
 
@@ -130,28 +121,30 @@ public static class NeuralStrikeMaterialLinker
         ForceImportFolder(ANIM_PATH);
         AssetDatabase.Refresh();
 
-        // Collect all AnimationClips from FBX files in ANIM_PATH
-        var groups = new Dictionary<string, List<AnimationClip>>();
+        var groups = new Dictionary<string, List<(string stateName, AnimationClip clip)>>();
 
-        var fbxFiles = Directory.GetFiles(
-            Path.Combine(Application.dataPath, "Animations"), "*.fbx",
-            SearchOption.AllDirectories);
-
-        foreach (var fbxFile in fbxFiles)
+        string animDiskPath = AssetToDiskPath(ANIM_PATH);
+        if (!Directory.Exists(animDiskPath))
         {
-            string assetPath = "Assets/Animations/" + Path.GetFileName(fbxFile);
+            EditorUtility.DisplayDialog("FBX Animators",
+                "Assets/Animations folder not found.", "OK");
+            return;
+        }
+
+        foreach (var fbxFile in Directory.GetFiles(animDiskPath, "*.fbx", SearchOption.AllDirectories))
+        {
+            string assetPath = DiskToAssetPath(fbxFile);
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
 
-            // Load all assets from this FBX
-            var assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
-            var clips  = assets.OfType<AnimationClip>()
-                               .Where(c => !c.name.StartsWith("__")) // skip internal Unity clips
-                               .ToList();
+            var clips = AssetDatabase.LoadAllAssetsAtPath(assetPath)
+                                     .OfType<AnimationClip>()
+                                     .Where(c => !c.name.StartsWith("__"))
+                                     .ToList();
 
             if (clips.Count == 0)
             {
-                Debug.LogWarning("[FBXAnim] No clips in: " + assetPath +
-                    " (file may be a Git LFS stub - run git lfs pull)");
+                Debug.LogWarning("[FBXAnim] No clips in " + assetPath +
+                    " — may be a Git LFS stub. Run: git lfs pull");
                 continue;
             }
 
@@ -159,8 +152,14 @@ public static class NeuralStrikeMaterialLinker
             string prefix = fname.Contains('_') ? fname.Substring(0, fname.IndexOf('_')) : fname;
 
             if (!groups.ContainsKey(prefix))
-                groups[prefix] = new List<AnimationClip>();
-            groups[prefix].AddRange(clips);
+                groups[prefix] = new List<(string, AnimationClip)>();
+
+            foreach (var clip in clips)
+            {
+                // FIX: dots not allowed in AnimatorState names (e.g. "mixamo.com")
+                string safeName = clip.name.Replace('.', '_').Replace(' ', '_');
+                groups[prefix].Add((safeName, clip));
+            }
         }
 
         int created = 0;
@@ -172,18 +171,18 @@ public static class NeuralStrikeMaterialLinker
 
             var root = ctrl.layers[0].stateMachine;
 
-            foreach (var clip in kv.Value)
+            foreach (var (stateName, clip) in kv.Value)
             {
-                bool exists = root.states.Any(s => s.state.name == clip.name);
+                bool exists = root.states.Any(s => s.state.name == stateName);
                 if (!exists)
                 {
-                    var st = root.AddState(clip.name);
+                    var st  = root.AddState(stateName);
                     st.motion = clip;
-                    Debug.Log("[FBXAnim] " + kv.Key + " <- " + clip.name);
+                    Debug.Log("[FBXAnim] " + kv.Key + " ← state: " + stateName);
                 }
             }
 
-            // Set first non-idle clip as default, or idle if present
+            // Prefer idle as default state
             var idleState = root.states.FirstOrDefault(s =>
                 s.state.name.ToLower().Contains("idle"));
             if (idleState.state != null)
@@ -196,40 +195,69 @@ public static class NeuralStrikeMaterialLinker
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        string msg = created > 0
-            ? "Created/updated " + created + " AnimatorController(s) in Assets/Animations/"
-            : "No clips found.\n\nYour FBX files may be Git LFS stubs.\n" +
-              "Run in terminal:\n  git lfs install\n  git lfs pull\nThen retry.";
-
-        EditorUtility.DisplayDialog("FBX Animators", msg, "OK");
+        EditorUtility.DisplayDialog("FBX Animators",
+            created > 0
+                ? "Created/updated " + created + " controller(s) in Assets/Animations/"
+                : "No FBX clips found.\nRun  git lfs pull  then retry.",
+            "OK");
     }
 
-    // ── Helpers ───────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Convert an "Assets/..." relative path to an absolute disk path.
+    /// Application.dataPath already ends with "/Assets" so we strip
+    /// the leading "Assets" from the input before joining.
+    /// </summary>
+    static string AssetToDiskPath(string assetPath)
+    {
+        // assetPath:  "Assets/Models"  or  "Assets/Textures"
+        // dataPath:   "D:/Projects/.../Assets"
+        string relative = assetPath.StartsWith("Assets/") || assetPath.StartsWith("Assets\\") 
+                        ? assetPath.Substring("Assets".Length).TrimStart('/', '\\')
+                        : assetPath;
+        return Path.Combine(Application.dataPath, relative);
+    }
+
+    /// <summary>
+    /// Convert an absolute disk path back to "Assets/..." relative path.
+    /// </summary>
+    static string DiskToAssetPath(string diskPath)
+    {
+        // dataPath = "D:/Projects/.../Assets"
+        string normalized = diskPath.Replace('\\', '/');
+        string dataPath   = Application.dataPath.Replace('\\', '/');
+
+        if (normalized.StartsWith(dataPath))
+            return "Assets" + normalized.Substring(dataPath.Length);
+
+        // Fallback: try stripping up to "/Assets/"
+        int idx = normalized.IndexOf("/Assets/");
+        return idx >= 0 ? normalized.Substring(idx + 1) : diskPath;
+    }
+
     static Dictionary<string, string> BuildTexMap()
     {
         var map = new Dictionary<string, string>();
-        if (!Directory.Exists(Path.Combine(Application.dataPath, "Textures"))) return map;
+        string diskPath = AssetToDiskPath(TEXTURES_PATH);
+        if (!Directory.Exists(diskPath)) return map;
 
-        var files = Directory.GetFiles(
-            Path.Combine(Application.dataPath, "Textures"),
-            "*", SearchOption.AllDirectories)
-            .Where(f => new[]{"png","jpg","jpeg"}.Contains(
-                Path.GetExtension(f).TrimStart('.').ToLower()));
-
-        foreach (var f in files)
+        var exts = new HashSet<string> { ".png", ".jpg", ".jpeg" };
+        foreach (var f in Directory.GetFiles(diskPath, "*", SearchOption.AllDirectories))
         {
-            string key = Path.GetFileNameWithoutExtension(f).ToLower();
-            string assetPath = "Assets/Textures/" + Path.GetFileName(f);
+            if (!exts.Contains(Path.GetExtension(f).ToLower())) continue;
+            string key       = Path.GetFileNameWithoutExtension(f).ToLower();
+            string assetPath = DiskToAssetPath(f);
             if (!map.ContainsKey(key)) map[key] = assetPath;
         }
         return map;
     }
 
-    static bool TryAssignTex(Material mat, Dictionary<string,string> map,
+    static bool TryAssignTex(Material mat, Dictionary<string, string> map,
                               string key, string prop1, string prop2)
     {
         if (!map.TryGetValue(key, out string path)) return false;
-        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
         var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
         if (tex == null) return false;
         mat.SetTexture(prop1, tex);
@@ -239,18 +267,13 @@ public static class NeuralStrikeMaterialLinker
 
     static void ForceImportFolder(string assetFolder)
     {
-        string fullPath = Path.Combine(
-            Application.dataPath.Replace("/Assets",""),
-            assetFolder.Replace("/",Path.DirectorySeparatorChar.ToString()));
+        string diskPath = AssetToDiskPath(assetFolder);
+        if (!Directory.Exists(diskPath)) return;
 
-        if (!Directory.Exists(fullPath)) return;
-
-        foreach (var f in Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories))
+        foreach (var f in Directory.GetFiles(diskPath, "*", SearchOption.AllDirectories))
         {
             if (f.EndsWith(".meta")) continue;
-            string rel = "Assets" + f
-                .Replace(Application.dataPath, "")
-                .Replace("\\", "/");
+            string rel = DiskToAssetPath(f);
             AssetDatabase.ImportAsset(rel, ImportAssetOptions.ForceSynchronousImport);
         }
     }

@@ -2,10 +2,12 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
-/// <summary>
-/// ev.io-style ability overlay: [Q] teleport | [G][U][V][E] grenades.
-/// Attach to HUD Canvas alongside HUDManager.
-/// </summary>
+// ============================================================
+//  ABILITY BAR HUD  — Neural Strike
+//  ev.io-style overlay: [Q] teleport | [G][U][V][E] grenades.
+//  Updated: uses GrenadeThrowController (renamed from GrenadeController).
+// ============================================================
+
 public class AbilityBarHUD : MonoBehaviour
 {
     [System.Serializable]
@@ -14,16 +16,16 @@ public class AbilityBarHUD : MonoBehaviour
         public Image           icon;
         public TextMeshProUGUI countText;
         public TextMeshProUGUI hotkeyLabel;
-        public Image           cooldownOverlay;  // radial/filled Image
+        public Image           cooldownOverlay;   // radial / filled Image
     }
 
-    [Header("Teleport Slot (Q)")]
-    public AbilitySlot    teleportSlot;
+    [Header("Teleport Slot  (Q)")]
+    public AbilitySlot     teleportSlot;
     public TeleportAbility teleportAbility;
 
-    [Header("Grenade Slots (G U V E)")]
-    public AbilitySlot[]     grenadeSlots = new AbilitySlot[4];
-    public GrenadeController grenadeController;
+    [Header("Grenade Slots  (G U V E)")]
+    public AbilitySlot[]          grenadeSlots = new AbilitySlot[4];
+    public GrenadeThrowController grenadeController;   // ← renamed class
 
     [Header("Colors")]
     public Color readyColor    = Color.white;
@@ -32,42 +34,53 @@ public class AbilityBarHUD : MonoBehaviour
 
     private static readonly string[] GrenadeKeys = { "G", "U", "V", "E" };
 
-    private void Update()
+    // Slot order matches GrenadeThrowController: 0=frag 1=sticky 2=vortex 3=(unused)
+    void Update()
     {
+        // Auto-find if not wired in Inspector
+        if (teleportAbility == null || grenadeController == null)
+        {
+            GameObject p = GameObject.FindWithTag("Player");
+            if (p != null)
+            {
+                if (teleportAbility  == null) teleportAbility  = p.GetComponent<TeleportAbility>();
+                if (grenadeController == null) grenadeController = p.GetComponent<GrenadeThrowController>();
+            }
+        }
+
         UpdateTeleport();
         UpdateGrenades();
     }
 
-    private void UpdateTeleport()
+    void UpdateTeleport()
     {
         if (teleportSlot == null) return;
-
-        bool hasAbility = teleportAbility != null && teleportAbility.teleportSkillLevel > 0;
         if (teleportSlot.hotkeyLabel) teleportSlot.hotkeyLabel.text = "Q";
 
+        bool hasAbility = teleportAbility != null && teleportAbility.skillLevel > 0;
         if (!hasAbility)
         {
-            SetColor(teleportSlot, emptyColor);
+            SetSlotColor(teleportSlot, emptyColor);
             if (teleportSlot.countText) teleportSlot.countText.text = "";
+            if (teleportSlot.cooldownOverlay) teleportSlot.cooldownOverlay.fillAmount = 0f;
             return;
         }
 
-        // CooldownNormalized: 0 = just used (on cooldown), 1 = ready
-        float readyFrac = teleportAbility.CooldownNormalized;
+        float readyFrac  = teleportAbility.CooldownNormalized;  // 0=on cooldown, 1=ready
         bool  onCooldown = readyFrac < 1f;
 
-        SetColor(teleportSlot, onCooldown ? cooldownColor : readyColor);
+        SetSlotColor(teleportSlot, onCooldown ? cooldownColor : readyColor);
 
         if (teleportSlot.cooldownOverlay)
             teleportSlot.cooldownOverlay.fillAmount = onCooldown ? (1f - readyFrac) : 0f;
 
         if (teleportSlot.countText)
             teleportSlot.countText.text = onCooldown
-                ? Mathf.CeilToInt((1f - readyFrac) * teleportAbility.baseCooldown).ToString()
+                ? Mathf.CeilToInt((1f - readyFrac) * teleportAbility.Cooldown).ToString()
                 : "";
     }
 
-    private void UpdateGrenades()
+    void UpdateGrenades()
     {
         for (int i = 0; i < grenadeSlots.Length; i++)
         {
@@ -76,16 +89,28 @@ public class AbilityBarHUD : MonoBehaviour
 
             if (slot.hotkeyLabel) slot.hotkeyLabel.text = GrenadeKeys[i];
 
-            bool hasSlot  = grenadeController != null && i < grenadeController.GetSlotCount();
-            int  rem      = hasSlot ? grenadeController.GetRemaining(i) : 0;
+            int rem = (grenadeController != null) ? GetRemaining(i) : 0;
 
-            SetColor(slot, (!hasSlot || rem <= 0) ? emptyColor : readyColor);
-            if (slot.countText) slot.countText.text = rem.ToString();
+            SetSlotColor(slot, rem <= 0 ? emptyColor : readyColor);
+            if (slot.countText) slot.countText.text = rem > 0 ? rem.ToString() : "-";
             if (slot.cooldownOverlay) slot.cooldownOverlay.fillAmount = 0f;
         }
     }
 
-    private void SetColor(AbilitySlot slot, Color c)
+    // Maps slot index to the correct count on GrenadeThrowController
+    int GetRemaining(int slot)
+    {
+        if (grenadeController == null) return 0;
+        switch (slot)
+        {
+            case 0: return grenadeController.fragCount;
+            case 1: return grenadeController.stickyCount;
+            case 2: return grenadeController.vortexCount;
+            default: return 0;
+        }
+    }
+
+    void SetSlotColor(AbilitySlot slot, Color c)
     {
         if (slot.icon) slot.icon.color = c;
     }
